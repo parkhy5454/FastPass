@@ -1,5 +1,11 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 model User {
   id            String   @id @default(cuid())
@@ -7,11 +13,11 @@ model User {
   password      String
   name          String
   phone         String
-  phoneEnc      String? // pgp encrypted
+  phoneEnc      String?
   interests     String[] @default([])
   role          String   @default("USER")
-  otpSecret     String? // admin 2FA
-  ci            String? // PASS CI (나중에)
+  otpSecret     String?
+  ci            String?
   verified      Boolean  @default(false)
   createdAt     DateTime @default(now())
   purchases     Purchase[]
@@ -22,48 +28,48 @@ model User {
 }
 
 model Flipbook {
-  id         String @id @default(cuid())
-  title      String
-  certType   String
-  certDetail String?
-  type       String // GICHUL, YESANG, RESTORE
-  price      Int
-  totalPages Int
-  coverUrl   String
-  pdfUrl     String?
-  accuracy   Float?
-  year       Int?
-  round      Int?
-  isPublished Boolean @default(true)
-  createdAt  DateTime @default(now())
-  pages      FlipbookPage[]
-  purchases  Purchase[]
+  id          String   @id @default(cuid())
+  title       String
+  certType    String
+  certDetail  String?
+  type        String
+  price       Int
+  totalPages  Int
+  coverUrl    String
+  pdfUrl      String?
+  accuracy    Float?
+  year        Int?
+  round       Int?
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  pages       FlipbookPage[]
+  purchases   Purchase[]
 }
 
 model FlipbookPage {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   flipbookId String
   pageNumber Int
-  imageUrl   String // canvas rendered
+  imageUrl   String
   subject    String?
   subjectNo  Int?
   question   Json?
-  solution   Json? // 풀이
+  solution   Json?
   keyword    String?
   flipbook   Flipbook @relation(fields: [flipbookId], references: [id], onDelete: Cascade)
   @@unique([flipbookId, pageNumber])
 }
 
 model Purchase {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   userId     String
   flipbookId String
   amount     Int
-  realPrice  Int // 서버 검증용
+  realPrice  Int
   pgTid      String?
-  verified   Boolean @default(false)
+  verified   Boolean  @default(false)
   createdAt  DateTime @default(now())
-  user       User @relation(fields: [userId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
   flipbook   Flipbook @relation(fields: [flipbookId], references: [id])
   @@unique([userId, flipbookId])
 }
@@ -71,7 +77,7 @@ model Purchase {
 model Subscription {
   id        String   @id @default(cuid())
   userId    String   @unique
-  plan      String // BASIC_10Y, EXPECTED_300, YEAR_PASS, ONEPASS_1, UPDATE_2
+  plan      String
   status    String   @default("ACTIVE")
   startAt   DateTime @default(now())
   endAt     DateTime
@@ -81,13 +87,13 @@ model Subscription {
 }
 
 model PdfLog {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   userId     String
   flipbookId String
   ip         String?
   ua         String?
   createdAt  DateTime @default(now())
-  user       User @relation(fields: [userId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
 }
 
 model WrongNote {
@@ -96,24 +102,24 @@ model WrongNote {
   flipbookId   String
   pageId       String
   question     Json
-  nextReviewAt DateTime // 3/7/15일 후
+  nextReviewAt DateTime
   reviewCount  Int      @default(0)
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
 }
 
 model MockResult {
-  id         String   @id @default(cuid())
-  userId     String
-  flipbookId String
-  totalQ     Int
-  correctQ   Int
-  score      Float
-  subjectScores Json // {"전기자기학": 80, ...}
-  timeUsed   Int // 초
-  passed     Boolean
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
+  id            String   @id @default(cuid())
+  userId        String
+  flipbookId    String
+  totalQ        Int
+  correctQ      Int
+  score         Float
+  subjectScores Json
+  timeUsed      Int
+  passed        Boolean
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
 }
 
 model Analysis {
@@ -136,14 +142,14 @@ model Coupon {
 }
 
 model Job {
-  id           String @id @default(cuid())
-  type         String // GUIN, GUJIK
+  id           String   @id @default(cuid())
+  type         String
   company      String?
   title        String
   certRequired String[] @default([])
   location     String
   salary       String?
   contact      String
-  verified     Boolean @default(false)
+  verified     Boolean  @default(false)
   createdAt    DateTime @default(now())
 }
