@@ -1,4 +1,3 @@
-
 'use client'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -13,12 +12,10 @@ export default function BottomTabs(){
     fetch('/api/auth/me').then(r=>r.json()).then(d=>{ setUser(d.user); setLoading(false) }).catch(()=>setLoading(false))
   }, [pathname])
 
-  // Hide tabs if not logged in or still loading auth
-  // Also hide on login/signup pages
   const hideOnPaths = ['/login', '/signup']
   if(hideOnPaths.some(p=>pathname?.startsWith(p))) return null
   if(loading) return null
-  if(!user) return null // 로그인 전에는 하단 탭 숨김
+  if(!user) return null
 
   const tabs = [
     { href:'/', label:'홈', icon:'🏠', active: pathname==='/' },
@@ -27,7 +24,7 @@ export default function BottomTabs(){
     { href:'/my', label:'MY', icon:'⚙️', active: pathname?.startsWith('/my') || pathname?.startsWith('/admin') },
   ]
   return (
-    <nav style={{position:'fixed', bottom:0, left:0, right:0, background:'white', borderTop:'1px solid #E5E7EB', display:'flex', justifyContent:'space-around', padding:'8px 0 calc(8px + env(safe-area-inset-bottom))', zIndex:50, maxWidth:'480px', margin:'0 auto', left:'50%', transform:'translateX(-50%)', width:'100%'}}>
+    <nav style={{position:'fixed', bottom:0, background:'white', borderTop:'1px solid #E5E7EB', display:'flex', justifyContent:'space-around', padding:'8px 0 calc(8px + env(safe-area-inset-bottom))', zIndex:50, maxWidth:'480px', width:'100%', left:'50%', transform:'translateX(-50%)'}}>
       {tabs.map(t=>(
         <Link key={t.href} href={t.href} style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'2px', textDecoration:'none', padding:'4px 20px', borderRadius:'12px', background: t.active ? '#FFF7CC' : 'transparent'}}>
           <span style={{fontSize:'20px'}}>{t.icon}</span>
