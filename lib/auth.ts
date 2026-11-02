@@ -10,6 +10,3 @@ export async function signJwt(payload: any){
 export async function verifyJwt(token: string){
   try { const {payload} = await jwtVerify(token, secret); return payload } catch { return null }
 }
-export function setAuthCookie(token: string){
-  return `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7*24*60*60}`
-}
