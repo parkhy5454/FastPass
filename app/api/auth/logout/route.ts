@@ -1,4 +1,6 @@
 
+import { cookies } from 'next/headers'
 export async function POST(){
-  return new Response(JSON.stringify({ok:true}), { headers: { 'Set-Cookie': 'token=; Path=/; Max-Age=0', 'Content-Type':'application/json' } })
+  cookies().set('token', '', { httpOnly:true, path:'/', maxAge:0 })
+  return Response.json({ success:true })
 }
