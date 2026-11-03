@@ -20,16 +20,12 @@ export default function MyPage(){
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [showPw, setShowPw] = useState<{[k:string]:boolean}>({})
-  const [diag, setDiag] = useState<any>(null)
 
   useEffect(()=>{
     fetch('/api/auth/me').then(r=>r.json()).then(d=>{
       setUser(d.user)
       setLoading(false)
-      if(isAdminUser(d.user?.loginId, d.user?.role)){
-        loadData()
-        fetch('/api/admin/diag').then(r=>r.json()).then(setDiag).catch(()=>{})
-      }
+      if(isAdminUser(d.user?.loginId, d.user?.role)) loadData()
     }).catch(()=>setLoading(false))
   },[])
 
@@ -40,8 +36,6 @@ export default function MyPage(){
   async function logout(){ await fetch('/api/auth/logout', {method:'POST'}); location.href='/login' }
   async function handleMakeAdmin(){
     if(!user) return
-    if(!canSelfPromote(user.loginId)){ alert('배포자 계정만 승격 가능합니다.'); return }
-    if(!confirm(`${user.loginId}를 관리자로 승격할까요?`)) return
     const res = await fetch('/api/admin/make-admin', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({loginId: user.loginId})})
     if(res.ok){ alert('관리자로 승격 완료!'); location.reload() } else { const j=await res.json(); alert('실패:'+j.error) }
   }
@@ -69,29 +63,22 @@ export default function MyPage(){
           <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'#9CA3AF'}}>아이디</span><span style={{fontWeight:600, fontSize:'12px', wordBreak:'break-all'}}>{user.loginId}</span></div>
           <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'#9CA3AF'}}>권한</span><span style={{fontWeight:700, color: isAdmin ? '#DC2626' : '#6B7280'}}>{isAdmin ? 'ADMIN (배포자)' : '일반회원'}</span></div>
         </div>
-        {/* 배포자만 승격 버튼 보임 */}
         {canPromote && (
           <button onClick={handleMakeAdmin} style={{width:'100%', marginTop:'12px', background:'#FFD60A', border:'none', padding:'14px', borderRadius:'12px', fontWeight:800, cursor:'pointer'}}>🔑 내 계정을 관리자로 승격 (배포자 전용)</button>
-        )}
-        {!isAdmin && !canPromote && (
-          <div style={{marginTop:'12px', background:'#F8F9FB', padding:'12px', borderRadius:'12px', fontSize:'12px', color:'#6B7280'}}>
-            일반 회원 계정입니다. 학습 기능 이용 가능.
-          </div>
         )}
       </div>
 
       {isAdmin ? (
         <div style={{background:'white', borderRadius:'20px', padding:'20px', marginTop:'12px'}}>
           <div style={{fontWeight:800, fontSize:'16px'}}>👥 회원 가입자 관리 (전체) - {users.length}명</div>
-          <div style={{fontSize:'11px', color:'#9CA3AF', marginTop:'4px'}}>배포자만 볼 수 있는 관리자 영역</div>
           
-          {diag && (
-            <div style={{background:'#F0FDF4', borderRadius:'12px', padding:'12px', marginTop:'12px', fontSize:'11px'}}>
-              <div>총 회원 수: {diag.userCount} / DB 연결: {diag.env?.hasDatabaseUrl ? '✅' : '❌'}</div>
-            </div>
-          )}
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', margin:'16px 0'}}>
+            <div style={{background:'#F8F9FB', borderRadius:'12px', padding:'14px', textAlign:'center'}}><div style={{fontSize:'20px', fontWeight:800}}>{users.length}</div><div style={{fontSize:'11px', color:'#6B7280'}}>총 회원</div></div>
+            <div style={{background:'#FFF7CC', borderRadius:'12px', padding:'14px', textAlign:'center'}}><div style={{fontSize:'16px', fontWeight:800}}>{purchases.reduce((a:any,b:any)=>a+(b.amount||0),0).toLocaleString()}원</div><div style={{fontSize:'11px', color:'#92400E'}}>총 매출</div></div>
+            <div style={{background:'#E0F2FE', borderRadius:'12px', padding:'14px', textAlign:'center'}}><div style={{fontSize:'20px', fontWeight:800}}>{purchases.length}</div><div style={{fontSize:'11px', color:'#0369A1'}}>결제 건수</div></div>
+          </div>
 
-          <div style={{display:'flex', gap:'8px', margin:'12px 0'}}>
+          <div style={{display:'flex', gap:'8px', marginBottom:'12px'}}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="아이디, 이름, 전화번호 검색" style={{flex:1, padding:'12px', borderRadius:'12px', border:'1px solid #E5E7EB', fontSize:'13px'}} />
             <button onClick={loadData} style={{background:'#FFD60A', border:'none', borderRadius:'12px', padding:'12px 16px', fontWeight:800, cursor:'pointer'}}>새로고침</button>
           </div>
