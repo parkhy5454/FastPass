@@ -47,3 +47,48 @@ model Question {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model Flipbook {
+  id         String   @id @default(cuid())
+  title      String
+  certType   String?
+  year       Int?
+  round      Int?
+  type       String?
+  price      Int      @default(0)
+  totalPages Int      @default(0)
+  coverUrl   String?
+  isPublished Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  pages      FlipbookPage[]
+}
+
+model FlipbookPage {
+  id         String   @id @default(cuid())
+  flipbookId String
+  flipbook   Flipbook @relation(fields: [flipbookId], references: [id], onDelete: Cascade)
+  pageNumber Int
+  subject    String?
+  question   String?
+  options    Json?
+  answer     String?
+  keyword    String?
+  createdAt  DateTime @default(now())
+}
+
+model WrongNote {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String?
+  certType   String?
+  createdAt  DateTime @default(now())
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+}

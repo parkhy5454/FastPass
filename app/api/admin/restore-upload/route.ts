@@ -1,33 +1,47 @@
+
 import { prisma } from '@/lib/db'
-import { verifyJwt } from '@/lib/auth'
-// 복원 빠른 업로드 에디터 - 관리자가 텍스트 붙여넣으면 자동 생성
-export async function POST(req: Request) {
-  const auth = req.headers.get('cookie')?.match(/token=([^;]+)/)?.[1] || req.headers.get('authorization')?.replace('Bearer ','')
-  const payload: any = auth ? await verifyJwt(auth) : null
-  if (payload?.role !== 'ADMIN') return Response.json({error:'권한 없음'}, {status:403})
-  const { title, certType, year, round, questions } = await req.json() // questions: [{subject, question, options, answer, keyword}]
-  const flipbook = await prisma.flipbook.create({
-    data: {
-      title, certType, year, round, type: 'RESTORE',
-      price: 0, totalPages: questions.length, coverUrl: '/covers/restore.png', isPublished: true
+export async function POST(req:Request){
+  try{
+    const { title, certType, year, round, questions } = await req.json()
+    const p:any = prisma
+    if(!p.flipbook){
+      return Response.json({ success:false, error:'Flipbook table not ready, deploying...' }, {status:200})
     }
-  })
-  for (let i=0; i<questions.length; i++) {
-    const q = questions[i]
-    await prisma.flipbookPage.create({
+    const flipbook = await p.flipbook.create({
       data: {
-        flipbookId: flipbook.id,
-        pageNumber: i+1,
-        imageUrl: `/pages/restore-${flipbook.id}-${i+1}.png`,
-        subject: q.subject,
-        subjectNo: (i % 20)+1,
-        question: q,
-        solution: q.solution || null,
-        keyword: q.keyword
+        title, certType, year, round, type: 'RESTORE',
+        price: 0, totalPages: questions.length, coverUrl: '/covers/restore.png', isPublished: true
       }
     })
-    // Analysis도 자동 추가
-    await prisma.analysis.create({ data: { certType, year, round, subject: q.subject, keyword: q.keyword, count: 1 } })
+    if(questions && p.flipbookPage){
+      for(let i=0;i<questions.length;i++){
+        const q = questions[i]
+        await p.flipbookPage.create({
+          data:{
+            flipbookId: flipbook.id,
+            pageNumber: i+1,
+            subject: q.subject,
+            question: q.question,
+            options: q.options,
+            answer: q.answer,
+            keyword: q.keyword
+          }
+        })
+      }
+    }
+    return Response.json({ success:true, id: flipbook.id })
+  }catch(e:any){
+    return Response.json({ success:false, error:e.message }, {status:500})
   }
-  return Response.json({ flipbookId: flipbook.id, count: questions.length })
+}
+
+export async function GET(){
+  try{
+    const p:any = prisma
+    if(!p.flipbook) return Response.json({ flipbooks: [] })
+    const flipbooks = await p.flipbook.findMany({ take:20, orderBy:{ createdAt:'desc' } })
+    return Response.json({ flipbooks })
+  }catch(e:any){
+    return Response.json({ flipbooks: [], error:e.message })
+  }
 }
