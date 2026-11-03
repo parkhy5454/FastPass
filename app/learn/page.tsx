@@ -1,129 +1,98 @@
 
 'use client'
-import { useState, useEffect } from 'react'
-
-const CATEGORIES:any = {
-  '기술사': [
-    { name: '발송배전기술사', code: '발송배전', count: 0, color:'#7C3AED' },
-    { name: '건축전기설비기술사', code: '건축전기', count: 0, color:'#7C3AED' },
-    { name: '전기응용기술사', code: '전기응용', count: 0, color:'#7C3AED' },
-    { name: '전기철도기술사', code: '전기철도', count: 0, color:'#7C3AED' },
-    { name: '전기안전기술사', code: '전기안전', count: 0, color:'#7C3AED' },
-  ],
-  '기능장': [
-    { name: '전기기능장', code: '전기기능장', count: 0, color:'#DC2626' },
-  ],
-  '기사': [
-    { name: '전기기사', code: '전기기사', count: 300, color:'#2563EB', hot:true },
-    { name: '전기공사기사', code: '전기공사기사', count: 200, color:'#2563EB' },
-    { name: '소방설비기사(전기)', code: '소방전기기사', count: 150, color:'#EA580C', hot:true },
-  ],
-  '산업기사': [
-    { name: '전기산업기사', code: '전기산업기사', count: 250, color:'#059669', hot:true },
-    { name: '전기공사산업기사', code: '전기공사산업기사', count: 180, color:'#059669' },
-    { name: '소방설비산업기사(전기)', code: '소방전기산업기사', count: 120, color:'#EA580C' },
-  ],
-  '기능사': [
-    { name: '전기기능사', code: '전기기능사', count: 300, color:'#4B5563', hot:true },
-    { name: '전기공사기능사', code: '전기공사기능사', count: 100, color:'#4B5563' },
-  ],
-}
+import { useEffect, useState } from 'react'
 
 export default function LearnPage(){
-  const [level, setLevel] = useState('기사')
-  const [selectedCert, setSelectedCert] = useState('전기기사')
-  const [questions, setQuestions] = useState<any[]>([])
+  const [certs, setCerts] = useState<any[]>([])
+  const [flipbooks, setFlipbooks] = useState<any[]>([])
+  const [problemTypes, setProblemTypes] = useState<any[]>([])
+  const [selectedLevel, setSelectedLevel] = useState('전체')
+  const [selectedType, setSelectedType] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(()=>{
-    fetch(`/api/questions?category=${selectedCert}`).then(r=>r.json()).then((d:any)=>{
-      setQuestions(d.questions || d.sample || [])
+    fetch('/api/questions').then(r=>r.json()).then(d=>{
+      const list = Array.isArray(d) ? d : d.certs || d.questions || []
+      setCerts(list.slice(0,50))
     }).catch(()=>{})
-  }, [selectedCert])
+    fetch('/api/admin/flipbooks').then(r=>r.json()).then(d=>{
+      setFlipbooks(Array.isArray(d) ? d : [])
+    }).catch(()=>{})
+    fetch('/api/admin/problem-types').then(r=>r.json()).then(d=>{
+      if(Array.isArray(d) && d.length>0) setProblemTypes(d)
+      else setProblemTypes([{id:'1', name:'기출문제', icon:'📜'}, {id:'2', name:'예상문제', icon:'⭐'}])
+    }).catch(()=> setProblemTypes([{id:'1', name:'기출문제', icon:'📜'}, {id:'2', name:'예상문제', icon:'⭐'}]))
+    setLoading(false)
+  },[])
+
+  const levels = ['전체','기술사','기능장','기사','산업기사','기능사']
+
+  if(loading) return <main style={{padding:'20px'}}>로딩중...</main>
 
   return (
-    <main style={{padding:'0 0 100px', background:'#F8F9FB', minHeight:'100vh'}}>
-      <div style={{background:'white', padding:'20px 20px 16px', position:'sticky', top:0, zIndex:10, boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
-        <h1 style={{fontSize:'20px', fontWeight:800}}>📚 학습</h1>
-        <div style={{fontSize:'12px', color:'#6B7280', marginTop:'2px'}}>원하는 자격증 레벨을 선택하세요</div>
-        <div style={{display:'flex', gap:'6px', marginTop:'16px', overflowX:'auto'}}>
-          {Object.keys(CATEGORIES).map((lvl:string)=>(
-            <button key={lvl} onClick={()=>setLevel(lvl)} style={{
-              padding:'10px 16px', borderRadius:'20px', border:'none', whiteSpace:'nowrap',
-              fontSize:'13px', fontWeight:700, cursor:'pointer',
-              background: level===lvl ? '#111827' : '#F3F4F6',
-              color: level===lvl ? 'white' : '#6B7280'
-            }}>
-              {lvl}
-            </button>
-          ))}
-        </div>
+    <main style={{padding:'20px', paddingBottom:'100px', background:'#F8F9FB', minHeight:'100vh'}}>
+      <h1 style={{fontSize:'20px', fontWeight:800}}>📚 학습하기</h1>
+      
+      <div style={{display:'flex', gap:'6px', marginTop:'12px', flexWrap:'wrap'}}>
+        {levels.map(l=>(
+          <button key={l} onClick={()=>setSelectedLevel(l)} style={{padding:'8px 14px', borderRadius:'20px', border:'1px solid #E5E7EB', background: selectedLevel===l ? '#111827' : 'white', color: selectedLevel===l ? 'white' : '#6B7280', fontSize:'12px', fontWeight:700}}>{l}</button>
+        ))}
       </div>
 
-      <div style={{padding:'16px 20px'}}>
-        <div style={{fontSize:'14px', fontWeight:700, marginBottom:'12px', display:'flex', alignItems:'center', gap:'6px'}}>
-          <span style={{background:CATEGORIES[level][0].color, width:'4px', height:'16px', borderRadius:'2px', display:'inline-block'}}></span>
-          {level} ({CATEGORIES[level].length}개)
-        </div>
-        
-        <div style={{display:'grid', gap:'10px'}}>
-          {CATEGORIES[level].map((cert:any)=>(
-            <button key={cert.name} onClick={()=>setSelectedCert(cert.name)} style={{
-              background:'white', border: selectedCert===cert.name ? `2px solid ${cert.color}` : '1px solid #F3F4F6',
-              borderRadius:'16px', padding:'16px', textAlign:'left', cursor:'pointer',
-              boxShadow: selectedCert===cert.name ? `0 4px 12px ${cert.color}20` : '0 1px 3px rgba(0,0,0,0.04)',
-            }}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-                <div>
-                  <div style={{fontWeight:800, fontSize:'15px', display:'flex', alignItems:'center', gap:'6px'}}>
-                    {cert.name}
-                    {cert.hot && <span style={{background:'#FFD60A', fontSize:'9px', padding:'2px 6px', borderRadius:'6px'}}>HOT</span>}
+      <div style={{marginTop:'20px'}}>
+        {certs.length===0 ? (
+          <div>
+            {/* Demo cert cards - 전기기사 등 */}
+            {[
+              {name:'전기기사', hot:true, level:'기사', desc:'300문제 보유 - 기사', counts:{'기출 10년':10, '예상문제':300}},
+              {name:'전기공사기사', hot:false, level:'기사', desc:'기사'},
+              {name:'전기산업기사', hot:false, level:'산업기사', desc:'산업기사'},
+              {name:'전기기능사', hot:false, level:'기능사', desc:'기능사'},
+            ].map((cert:any)=>(
+              <div key={cert.name} style={{background:'white', borderRadius:'16px', padding:'16px', marginBottom:'12px', border:'1px solid #F3F4F6'}}>
+                <div style={{display:'flex', justifyContent:'space-between'}}>
+                  <div>
+                    <div style={{fontWeight:800, fontSize:'14px', display:'flex', gap:'6px', alignItems:'center'}}>{cert.name} {cert.hot && <span style={{background:'#FFD60A', fontSize:'10px', padding:'2px 6px', borderRadius:'6px'}}>HOT</span>}</div>
+                    <div style={{fontSize:'12px', color:'#6B7280', marginTop:'4px'}}>{cert.desc}</div>
+                    <div style={{display:'flex', gap:'6px', marginTop:'8px', flexWrap:'wrap'}}>
+                      {/* 기본 고정 + 동적 문제 유형들 - MY에서 생성한게 여기에! */}
+                      <button style={{padding:'6px 10px', borderRadius:'8px', border:'1px solid #E5E7EB', background:'#F8F9FB', fontSize:'11px'}}>기출 {cert.counts?.['기출 10년']||10}년</button>
+                      <button style={{padding:'6px 10px', borderRadius:'8px', border:'1px solid #E5E7EB', background:'#F8F9FB', fontSize:'11px'}}>예상문제</button>
+                      {problemTypes.filter(t=> t.name!=='기출문제' && t.name!=='예상문제').map((t:any)=>{
+                        const count = flipbooks.filter(f=> f.category===cert.name && f.type===t.name).length
+                        return (
+                          <button key={t.id} onClick={()=> setSelectedType(t.name)} style={{
+                            padding:'6px 12px', borderRadius:'8px', border:'1px solid #FFD60A', 
+                            background: selectedType===t.name ? '#FFD60A' : '#FFFBEB', 
+                            fontSize:'11px', fontWeight:700,
+                            display:'flex', gap:'4px', alignItems:'center'
+                          }}>
+                            {t.icon} {t.name} ({count})
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div style={{fontSize:'12px', color:'#6B7280', marginTop:'4px'}}>
-                    {cert.count>0 ? `${cert.count}문제 보유` : '문제 준비중'} • {level}
-                  </div>
-                  <div style={{marginTop:'8px', display:'flex', gap:'4px'}}>
-                    <span style={{fontSize:'10px', background:'#F3F4F6', padding:'3px 8px', borderRadius:'8px'}}>기출 10년</span>
-                    <span style={{fontSize:'10px', background:'#F3F4F6', padding:'3px 8px', borderRadius:'8px'}}>예상문제</span>
-                  </div>
-                </div>
-                <div style={{
-                  width:'40px', height:'40px', borderRadius:'12px', background: `${cert.color}15`,
-                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px'
-                }}>
-                  {level==='기술사'?'🎓': level==='기능장'?'👑': level==='기사'?'📘': level==='산업기사'?'📗':'📙'}
+                  <div style={{width:'48px', height:'48px', background:'#F3F4F6', borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px'}}>📘</div>
                 </div>
               </div>
-              {selectedCert===cert.name && (
-                <div style={{marginTop:'12px', display:'flex', gap:'6px'}}>
-                  <button onClick={(e:any)=>{e.stopPropagation(); location.href=`/learn/exam?cert=${encodeURIComponent(cert.name)}`}} style={{flex:1, background:cert.color, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontSize:'12px', fontWeight:700}}>모의고사</button>
-                  <button onClick={(e:any)=>{e.stopPropagation(); location.href=`/learn/list?cert=${encodeURIComponent(cert.name)}`}} style={{flex:1, background:'#F3F4F6', border:'none', padding:'10px', borderRadius:'10px', fontSize:'12px', fontWeight:700}}>문제풀기</button>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
+            ))}
 
-        <div style={{background:'white', borderRadius:'16px', padding:'16px', marginTop:'16px'}}>
-          <div style={{fontWeight:700, fontSize:'14px'}}>📊 {selectedCert} 학습 현황</div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginTop:'12px'}}>
-            <div style={{background:'#F8F9FB', borderRadius:'10px', padding:'12px', textAlign:'center'}}>
-              <div style={{fontSize:'18px', fontWeight:800}}>{questions.length || CATEGORIES[level].find((c:any)=>c.name===selectedCert)?.count || 0}</div>
-              <div style={{fontSize:'11px', color:'#6B7280'}}>총 문제</div>
-            </div>
-            <div style={{background:'#F0FDF4', borderRadius:'10px', padding:'12px', textAlign:'center'}}>
-              <div style={{fontSize:'18px', fontWeight:800, color:'#059669'}}>0</div>
-              <div style={{fontSize:'11px', color:'#6B7280'}}>푼 문제</div>
-            </div>
-            <div style={{background:'#FEF2F2', borderRadius:'10px', padding:'12px', textAlign:'center'}}>
-              <div style={{fontSize:'18px', fontWeight:800, color:'#DC2626'}}>0</div>
-              <div style={{fontSize:'11px', color:'#6B7280'}}>오답</div>
+            <div style={{background:'#FFFBEB', borderRadius:'12px', padding:'12px', marginTop:'16px', border:'1px dashed #F59E0B'}}>
+              <div style={{fontSize:'12px', fontWeight:700}}>💡 MY에서 생성한 문제 유형이 여기에 표시됩니다</div>
+              <div style={{fontSize:'11px', color:'#92400E', marginTop:'6px'}}>
+                현재 문제 유형: {problemTypes.map(t=>t.name).join(', ')}<br/>
+                예: MY에서 "123회 예상문제" 생성 → 학습 페이지 전기기사 카드에<br/>
+                [📁 123회 예상문제 (0)] 버튼이 기출 10년, 예상문제 옆에 자동 생성!
+              </div>
+              <div style={{display:'flex', gap:'6px', marginTop:'8px', flexWrap:'wrap'}}>
+                {problemTypes.map(t=> <span key={t.id} style={{background:'white', border:'1px solid #FDE68A', padding:'4px 8px', borderRadius:'8px', fontSize:'11px'}}>{t.icon} {t.name}</span>)}
+              </div>
             </div>
           </div>
-          <div style={{marginTop:'12px', display:'flex', gap:'8px'}}>
-            <button onClick={()=>location.href=`/learn/exam?cert=${encodeURIComponent(selectedCert)}`} style={{flex:2, background:'#111827', color:'white', border:'none', padding:'14px', borderRadius:'12px', fontWeight:700, fontSize:'14px', cursor:'pointer'}}>🎯 모의고사 시작</button>
-            <button onClick={()=>location.href=`/learn/list?cert=${encodeURIComponent(selectedCert)}`} style={{flex:1, background:'#FFD60A', border:'none', padding:'14px', borderRadius:'12px', fontWeight:800, fontSize:'14px', cursor:'pointer'}}>문제풀기</button>
-          </div>
-        </div>
+        ) : (
+          certs.map((c:any)=><div key={c.id} style={{background:'white', padding:'12px', marginBottom:'8px', borderRadius:'12px'}}>{c.name || c.title}</div>)
+        )}
       </div>
     </main>
   )
