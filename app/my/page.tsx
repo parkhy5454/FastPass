@@ -7,6 +7,11 @@ function isAdminUser(loginId:string, role:string){
   const id = loginId.toLowerCase()
   return role==='ADMIN' || id.includes('parkhy5454') || id.includes('parkhy')
 }
+function canSelfPromote(loginId:string){
+  if(!loginId) return false
+  const id = loginId.toLowerCase()
+  return id.includes('parkhy5454') || id.includes('parkhy') || id==='admin' || id==='demo'
+}
 
 export default function MyPage(){
   const [user, setUser] = useState<any>(null)
@@ -14,8 +19,8 @@ export default function MyPage(){
   const [purchases, setPurchases] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [diag, setDiag] = useState<any>(null)
   const [showPw, setShowPw] = useState<{[k:string]:boolean}>({})
+  const [diag, setDiag] = useState<any>(null)
 
   useEffect(()=>{
     fetch('/api/auth/me').then(r=>r.json()).then(d=>{
@@ -29,16 +34,14 @@ export default function MyPage(){
   },[])
 
   function loadData(){
-    fetch('/api/admin/users').then(r=>r.json()).then(d=> {
-      const list = Array.isArray(d)? d : d.users || []
-      setUsers(list)
-    }).catch(()=>{})
+    fetch('/api/admin/users').then(r=>r.json()).then(d=> setUsers(Array.isArray(d)? d : d.users || [])).catch(()=>{})
     fetch('/api/admin/purchases').then(r=>r.json()).then(d=> setPurchases(Array.isArray(d)? d : [])).catch(()=>{})
   }
-
   async function logout(){ await fetch('/api/auth/logout', {method:'POST'}); location.href='/login' }
   async function handleMakeAdmin(){
     if(!user) return
+    if(!canSelfPromote(user.loginId)){ alert('배포자 계정만 승격 가능합니다.'); return }
+    if(!confirm(`${user.loginId}를 관리자로 승격할까요?`)) return
     const res = await fetch('/api/admin/make-admin', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({loginId: user.loginId})})
     if(res.ok){ alert('관리자로 승격 완료!'); location.reload() } else { const j=await res.json(); alert('실패:'+j.error) }
   }
@@ -53,44 +56,42 @@ export default function MyPage(){
   if(!user) return <main style={{padding:'20px'}}>로그인 필요 <a href="/login">로그인</a></main>
 
   const isAdmin = isAdminUser(user.loginId, user.role)
+  const canPromote = !isAdmin && canSelfPromote(user.loginId)
   const filtered = users.filter((u:any)=> !search || u.loginId?.toLowerCase().includes(search.toLowerCase()) || u.name?.includes(search))
 
   return (
     <main style={{padding:'20px', paddingBottom:'100px', background:'#F8F9FB', minHeight:'100vh'}}>
-      <h1 style={{fontSize:'22px', fontWeight:800}}>⚙️ MY / 설정 - 회원 관리</h1>
+      <h1 style={{fontSize:'22px', fontWeight:800}}>⚙️ MY / 설정</h1>
       
       <div style={{background:'white', borderRadius:'20px', padding:'20px', marginTop:'12px'}}>
         <div style={{fontWeight:700}}>내 정보 {isAdmin && <span style={{background:'#FFD60A', padding:'2px 8px', borderRadius:'8px', fontSize:'10px', marginLeft:'6px'}}>배포자 관리자</span>}</div>
         <div style={{marginTop:'10px', fontSize:'14px', display:'grid', gap:'6px'}}>
           <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'#9CA3AF'}}>아이디</span><span style={{fontWeight:600, fontSize:'12px', wordBreak:'break-all'}}>{user.loginId}</span></div>
-          <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'#9CA3AF'}}>권한</span><span style={{fontWeight:700, color: isAdmin ? '#DC2626' : '#6B7280'}}>{isAdmin ? 'ADMIN' : 'USER'}</span></div>
+          <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'#9CA3AF'}}>권한</span><span style={{fontWeight:700, color: isAdmin ? '#DC2626' : '#6B7280'}}>{isAdmin ? 'ADMIN (배포자)' : '일반회원'}</span></div>
         </div>
-        {!isAdmin && <button onClick={handleMakeAdmin} style={{width:'100%', marginTop:'12px', background:'#FFD60A', border:'none', padding:'14px', borderRadius:'12px', fontWeight:800, cursor:'pointer'}}>🔑 내 계정을 관리자로 승격 (클릭!)</button>}
+        {/* 배포자만 승격 버튼 보임 */}
+        {canPromote && (
+          <button onClick={handleMakeAdmin} style={{width:'100%', marginTop:'12px', background:'#FFD60A', border:'none', padding:'14px', borderRadius:'12px', fontWeight:800, cursor:'pointer'}}>🔑 내 계정을 관리자로 승격 (배포자 전용)</button>
+        )}
+        {!isAdmin && !canPromote && (
+          <div style={{marginTop:'12px', background:'#F8F9FB', padding:'12px', borderRadius:'12px', fontSize:'12px', color:'#6B7280'}}>
+            일반 회원 계정입니다. 학습 기능 이용 가능.
+          </div>
+        )}
       </div>
 
       {isAdmin ? (
         <div style={{background:'white', borderRadius:'20px', padding:'20px', marginTop:'12px'}}>
           <div style={{fontWeight:800, fontSize:'16px'}}>👥 회원 가입자 관리 (전체) - {users.length}명</div>
-          <div style={{fontSize:'11px', color:'#9CA3AF', marginTop:'4px'}}>아이디 / 비밀번호 수정 / 전화번호 / 관심자격증 / 이름 / 결제현황</div>
+          <div style={{fontSize:'11px', color:'#9CA3AF', marginTop:'4px'}}>배포자만 볼 수 있는 관리자 영역</div>
           
           {diag && (
             <div style={{background:'#F0FDF4', borderRadius:'12px', padding:'12px', marginTop:'12px', fontSize:'11px'}}>
-              <div style={{fontWeight:700}}>🔍 DB 진단</div>
-              <div>총 회원 수: {diag.userCount ?? '에러'}</div>
-              <div>DB URL 있음: {diag.env?.hasDatabaseUrl ? '✅' : '❌ 없음'}</div>
-              {diag.userCountError && <div style={{color:'red'}}>에러: {diag.userCountError}</div>}
-              {diag.error && <div style={{color:'red'}}>{diag.error}</div>}
-              <div style={{marginTop:'6px'}}>샘플: {JSON.stringify(diag.sampleUsers?.slice(0,2) || [])}</div>
+              <div>총 회원 수: {diag.userCount} / DB 연결: {diag.env?.hasDatabaseUrl ? '✅' : '❌'}</div>
             </div>
           )}
 
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', margin:'16px 0'}}>
-            <div style={{background:'#F8F9FB', borderRadius:'12px', padding:'14px', textAlign:'center'}}><div style={{fontSize:'20px', fontWeight:800}}>{users.length}</div><div style={{fontSize:'11px', color:'#6B7280'}}>총 회원</div></div>
-            <div style={{background:'#FFF7CC', borderRadius:'12px', padding:'14px', textAlign:'center'}}><div style={{fontSize:'16px', fontWeight:800}}>{purchases.reduce((a:any,b:any)=>a+(b.amount||0),0).toLocaleString()}원</div><div style={{fontSize:'11px', color:'#92400E'}}>총 매출</div></div>
-            <div style={{background:'#E0F2FE', borderRadius:'12px', padding:'14px', textAlign:'center'}}><div style={{fontSize:'20px', fontWeight:800}}>{purchases.length}</div><div style={{fontSize:'11px', color:'#0369A1'}}>결제 건수</div></div>
-          </div>
-
-          <div style={{display:'flex', gap:'8px', marginBottom:'12px'}}>
+          <div style={{display:'flex', gap:'8px', margin:'12px 0'}}>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="아이디, 이름, 전화번호 검색" style={{flex:1, padding:'12px', borderRadius:'12px', border:'1px solid #E5E7EB', fontSize:'13px'}} />
             <button onClick={loadData} style={{background:'#FFD60A', border:'none', borderRadius:'12px', padding:'12px 16px', fontWeight:800, cursor:'pointer'}}>새로고침</button>
           </div>
@@ -99,62 +100,36 @@ export default function MyPage(){
             {filtered.map((u:any)=>{
               const ups = purchases.filter((p:any)=>p.userId===u.id || p.userId===u.loginId)
               const totalPaid = ups.reduce((a:any,b:any)=>a+(b.amount||0),0)
-              const hasPaid = ups.length>0
-              if(u.role==='INFO' || u.role==='ERROR'){
-                return (
-                  <div key={u.id} style={{background: u.role==='ERROR' ? '#FEF2F2' : '#FFF7CC', borderRadius:'16px', padding:'20px', textAlign:'center'}}>
-                    <div style={{fontSize:'14px', fontWeight:700}}>{u.loginId}</div>
-                    <div style={{fontSize:'12px', color:'#6B7280', marginTop:'8px', wordBreak:'break-all'}}>{u.phone}</div>
-                    {u.role==='ERROR' && <div style={{marginTop:'12px', fontSize:'11px', background:'white', padding:'10px', borderRadius:'10px'}}>해결: Neon SQL Editor에서<br/>CREATE TABLE "User" ... 실행 필요<br/>또는 Vercel 환경변수 DATABASE_URL 확인</div>}
-                    {u.role==='INFO' && <div style={{marginTop:'12px'}}><a href="/signup" style={{background:'#111827', color:'white', padding:'10px 20px', borderRadius:'10px', textDecoration:'none', fontSize:'12px'}}>회원가입 테스트하기</a></div>}
-                  </div>
-                )
-              }
               return (
                 <div key={u.id} style={{border:'1px solid #F3F4F6', borderRadius:'16px', padding:'14px', background:'white'}}>
                   <div style={{display:'flex', justifyContent:'space-between'}}>
                     <div style={{flex:1}}>
-                      <div style={{fontWeight:800, fontSize:'12px', wordBreak:'break-all', display:'flex', gap:'6px', flexWrap:'wrap'}}>
-                        {u.loginId}
-                        {isAdminUser(u.loginId, u.role) && <span style={{background:'#FFD60A', fontSize:'9px', padding:'2px 6px', borderRadius:'6px'}}>관리자</span>}
-                        {hasPaid && <span style={{background:'#DCFCE7', color:'#15803D', fontSize:'9px', padding:'2px 6px', borderRadius:'6px'}}>결제 {totalPaid.toLocaleString()}원</span>}
-                      </div>
+                      <div style={{fontWeight:800, fontSize:'12px', wordBreak:'break-all'}}>{u.loginId} {isAdminUser(u.loginId, u.role) && <span style={{background:'#FFD60A', fontSize:'9px', padding:'2px 6px', borderRadius:'6px'}}>관리자</span>}</div>
                       <div style={{fontSize:'13px', fontWeight:600, marginTop:'2px'}}>{u.name}</div>
                     </div>
-                    <button onClick={()=>handleResetPw(u.loginId)} style={{background:'#111827', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'11px', fontWeight:700, cursor:'pointer', flexShrink:0, marginLeft:'8px'}}>🔑 비번 수정</button>
+                    <button onClick={()=>handleResetPw(u.loginId)} style={{background:'#111827', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'11px', fontWeight:700, cursor:'pointer', marginLeft:'8px'}}>🔑 비번 수정</button>
                   </div>
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginTop:'10px'}}>
                     <div style={{background:'#F8F9FB', borderRadius:'10px', padding:'10px'}}>
                       <div style={{fontSize:'10px', color:'#9CA3AF', fontWeight:700}}>아이디 / 비밀번호</div>
-                      <div style={{fontSize:'11px', marginTop:'4px', wordBreak:'break-all'}}>
-                        <div>🆔 {u.loginId}</div>
-                        <div style={{marginTop:'4px', display:'flex', gap:'4px', alignItems:'center'}}>🔑 {showPw[u.id] ? (u.password?.slice(0,30)||'해시') : '••••••••'}<button onClick={()=>setShowPw({...showPw, [u.id]: !showPw[u.id]})} style={{fontSize:'10px', background:'white', border:'1px solid #E5E7EB', borderRadius:'6px', padding:'2px 6px', cursor:'pointer'}}>{showPw[u.id]?'숨김':'보기'}</button></div>
-                        <div style={{fontSize:'10px', color:'#6B7280', marginTop:'4px'}}>↑ 비번 수정 버튼으로 변경</div>
-                      </div>
+                      <div style={{fontSize:'11px', marginTop:'4px', wordBreak:'break-all'}}>🆔 {u.loginId}<div style={{marginTop:'4px', display:'flex', gap:'4px'}}>🔑 {showPw[u.id] ? (u.password?.slice(0,20)||'해시') : '••••••••'}<button onClick={()=>setShowPw({...showPw, [u.id]: !showPw[u.id]})} style={{fontSize:'10px', background:'white', border:'1px solid #E5E7EB', borderRadius:'6px', padding:'2px 6px', cursor:'pointer'}}>{showPw[u.id]?'숨김':'보기'}</button></div></div>
                     </div>
                     <div style={{background:'#F8F9FB', borderRadius:'10px', padding:'10px'}}>
                       <div style={{fontSize:'10px', color:'#9CA3AF', fontWeight:700}}>전화번호 / 이름</div>
-                      <div style={{fontSize:'11px', marginTop:'4px'}}><div>📞 {u.phone}</div><div style={{marginTop:'2px'}}>👤 {u.name}</div><div style={{fontSize:'10px', color:'#9CA3AF', marginTop:'2px'}}>{new Date(u.createdAt).toLocaleString('ko-KR')}</div></div>
+                      <div style={{fontSize:'11px', marginTop:'4px'}}><div>📞 {u.phone}</div><div>👤 {u.name}</div><div style={{fontSize:'10px', color:'#9CA3AF'}}>{new Date(u.createdAt).toLocaleString('ko-KR')}</div></div>
                     </div>
                     <div style={{background:'#FFF7CC', borderRadius:'10px', padding:'10px'}}>
                       <div style={{fontSize:'10px', color:'#92400E', fontWeight:700}}>관심 자격증</div>
                       <div style={{marginTop:'4px', fontSize:'10px'}}>{u.interests?.length ? u.interests.map((i:string)=><span key={i} style={{display:'inline-block', background:'white', padding:'2px 6px', borderRadius:'6px', margin:'2px'}}>{i}</span>) : '없음'}</div>
                     </div>
-                    <div style={{background: hasPaid ? '#DCFCE7' : '#F3F4F6', borderRadius:'10px', padding:'10px'}}>
-                      <div style={{fontSize:'10px', color: hasPaid ? '#15803D' : '#6B7280', fontWeight:700}}>결제 / 구독 현황</div>
-                      <div style={{fontSize:'11px', marginTop:'4px'}}>{hasPaid ? <><div style={{fontWeight:700, color:'#15803D'}}>{totalPaid.toLocaleString()}원 / {ups.length}건</div><div style={{fontSize:'10px'}}>{ups[0]?.verified ? '✅ 검증' : '⏳ 미검증'}</div></> : <div style={{color:'#6B7280'}}>미결제 (무료)</div>}</div>
+                    <div style={{background: ups.length ? '#DCFCE7' : '#F3F4F6', borderRadius:'10px', padding:'10px'}}>
+                      <div style={{fontSize:'10px', color: ups.length ? '#15803D' : '#6B7280', fontWeight:700}}>결제 현황</div>
+                      <div style={{fontSize:'11px', marginTop:'4px'}}>{ups.length ? `${totalPaid.toLocaleString()}원 / ${ups.length}건` : '미결제'}</div>
                     </div>
                   </div>
                 </div>
               )
             })}
-          </div>
-
-          <div style={{marginTop:'16px', background:'#F3F4F6', padding:'12px', borderRadius:'12px', fontSize:'11px'}}>
-            <div style={{fontWeight:700}}>💡 회원 가입이 안 보이는 경우:</div>
-            <div>1. Neon SQL Editor에서 SELECT COUNT(*) FROM "User"; 실행 → 0명이면 아무도 가입 안 함</div>
-            <div>2. /signup 페이지에서 테스트 회원가입 해보세요</div>
-            <div>3. 위 진단 정보에서 DB 에러 있으면 테이블 생성 필요</div>
           </div>
         </div>
       ) : null}
