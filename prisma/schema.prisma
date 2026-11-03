@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,148 +9,41 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  loginId       String   @unique
-  password      String
-  name          String
-  phone         String
-  phoneEnc      String?
-  interests     String[] @default([])
-  role          String   @default("USER")
-  otpSecret     String?
-  ci            String?
-  verified      Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  purchases     Purchase[]
-  pdfLogs       PdfLog[]
-  subscriptions Subscription?
-  wrongNotes    WrongNote[]
-  mockResults   MockResult[]
-}
-
-model Flipbook {
-  id          String   @id @default(cuid())
-  title       String
-  certType    String
-  certDetail  String?
-  type        String
-  price       Int
-  totalPages  Int
-  coverUrl    String
-  pdfUrl      String?
-  accuracy    Float?
-  year        Int?
-  round       Int?
-  isPublished Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  pages       FlipbookPage[]
-  purchases   Purchase[]
-}
-
-model FlipbookPage {
-  id         String   @id @default(cuid())
-  flipbookId String
-  pageNumber Int
-  imageUrl   String
-  subject    String?
-  subjectNo  Int?
-  question   Json?
-  solution   Json?
-  keyword    String?
-  flipbook   Flipbook @relation(fields: [flipbookId], references: [id], onDelete: Cascade)
-  @@unique([flipbookId, pageNumber])
+  id        String   @id @default(cuid())
+  loginId   String   @unique
+  password  String
+  name      String
+  phone     String
+  interests String[]
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  purchases Purchase[]
 }
 
 model Purchase {
-  id         String   @id @default(cuid())
-  userId     String
-  flipbookId String
-  amount     Int
-  realPrice  Int
-  pgTid      String?
-  verified   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-  flipbook   Flipbook @relation(fields: [flipbookId], references: [id])
-  @@unique([userId, flipbookId])
-}
-
-model Subscription {
   id        String   @id @default(cuid())
-  userId    String   @unique
-  plan      String
-  status    String   @default("ACTIVE")
-  startAt   DateTime @default(now())
-  endAt     DateTime
-  pdfQuota  Int      @default(5)
-  pdfUsed   Int      @default(0)
+  userId    String
   user      User     @relation(fields: [userId], references: [id])
+  flipbookId String?
+  amount    Int      @default(0)
+  pgTid     String?
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
-model PdfLog {
-  id         String   @id @default(cuid())
-  userId     String
-  flipbookId String
-  ip         String?
-  ua         String?
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-}
-
-model WrongNote {
-  id           String   @id @default(cuid())
-  userId       String
-  flipbookId   String
-  pageId       String
-  question     Json
-  nextReviewAt DateTime
-  reviewCount  Int      @default(0)
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id])
-}
-
-model MockResult {
-  id            String   @id @default(cuid())
-  userId        String
-  flipbookId    String
-  totalQ        Int
-  correctQ      Int
-  score         Float
-  subjectScores Json
-  timeUsed      Int
-  passed        Boolean
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
-}
-
-model Analysis {
-  id       String @id @default(cuid())
-  certType String
-  year     Int
-  round    Int?
-  subject  String
-  keyword  String
-  count    Int
-}
-
-model Coupon {
-  id         String   @id @default(cuid())
-  userId     String
-  code       String   @unique
-  discount   Int
-  validUntil DateTime
-  used       Boolean  @default(false)
-}
-
-model Job {
-  id           String   @id @default(cuid())
-  type         String
-  company      String?
-  title        String
-  certRequired String[] @default([])
-  location     String
-  salary       String?
-  contact      String
-  verified     Boolean  @default(false)
-  createdAt    DateTime @default(now())
+model Question {
+  id          String   @id @default(cuid())
+  question    String
+  content     String?
+  choices     Json?
+  options     Json?
+  answer      Json?
+  explanation String?
+  subject     String?
+  category    String?
+  year        String?
+  difficulty  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
