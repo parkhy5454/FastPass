@@ -1,9 +1,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
 export async function POST(req: NextRequest){
   try{
     const { userId } = await req.json()
-    const { prisma } = await import('@/lib/prisma')
     const user = await prisma.user.findUnique({where:{id:userId}}).catch(()=>null) as any
     if(!user || !user.referredBy) return NextResponse.json({ok:true})
     const referrer = await prisma.user.findFirst({where:{loginId: user.referredBy}}).catch(()=>null) as any
