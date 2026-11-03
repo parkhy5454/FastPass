@@ -5,17 +5,8 @@ export async function POST(req:Request){
     const { loginId, newPassword } = await req.json()
     const p:any = prisma
     let hashed = newPassword
-    try{
-      const bcrypt = await import('bcryptjs')
-      hashed = await bcrypt.hash(newPassword, 10)
-    }catch{}
-    
-    const user = await p.user.update({
-      where:{ loginId },
-      data:{ password: hashed }
-    })
-    return Response.json({ success:true, user:{ loginId: user.loginId } })
-  }catch(e:any){
-    return Response.json({ success:false, error:e.message }, {status:500})
-  }
+    try{ const bcrypt = await import('bcryptjs'); hashed = await bcrypt.hash(newPassword, 10) }catch{}
+    const user = await p.user.update({ where:{ loginId }, data:{ password: hashed } })
+    return Response.json({ success:true, loginId: user.loginId })
+  }catch(e:any){ return Response.json({ error:e.message }, {status:500}) }
 }
