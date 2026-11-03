@@ -1,6 +1,11 @@
 
-import { cookies } from 'next/headers'
 export async function POST(){
-  cookies().set('token', '', { httpOnly:true, path:'/', maxAge:0 })
-  return Response.json({ success:true })
+  const res = new Response(JSON.stringify({success:true}))
+  res.headers.set('Set-Cookie', 'token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax')
+  return res
+}
+export async function GET(){
+  const res = new Response(JSON.stringify({success:true}))
+  res.headers.set('Set-Cookie', 'token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax')
+  return res
 }
