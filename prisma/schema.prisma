@@ -82,7 +82,12 @@ model WrongNote {
   userId     String
   questionId String?
   certType   String?
+  flipbookId String?
+  pageId     String?
+  question   Json?
+  nextReviewAt DateTime?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Payment {
