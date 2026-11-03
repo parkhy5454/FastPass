@@ -72,10 +72,9 @@ export default function MyPage(){
 
   return (
     <main style={{padding:'20px', paddingBottom:'100px', background:'#F8F9FB', minHeight:'100vh'}}>
-      {/* 헤더 - 로그아웃 버튼 크게! */}
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <h1 style={{fontSize:'18px', fontWeight:800}}>⚙️ MY / 설정 - PDF 플립북 관리</h1>
-        <button onClick={handleLogout} style={{background:'#FEE2E2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:'10px', padding:'10px 16px', fontSize:'13px', fontWeight:800, display:'flex', alignItems:'center', gap:'6px'}}>
+        <button onClick={handleLogout} style={{background:'#FEE2E2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:'10px', padding:'10px 16px', fontSize:'13px', fontWeight:800}}>
           🚪 로그아웃
         </button>
       </div>
@@ -86,7 +85,7 @@ export default function MyPage(){
           <div style={{fontSize:'13px', marginTop:'6px', fontWeight:600}}>{user.loginId} / {user.role}</div>
           <div style={{fontSize:'11px', color:'#6B7280', marginTop:'4px'}}>관심: {(user.interests||[]).join(', ') || '없음'}</div>
         </div>
-        <button onClick={handleLogout} style={{background:'#111827', color:'white', border:'none', borderRadius:'10px', padding:'10px 14px', fontSize:'12px', fontWeight:700}}>로그아웃</button>
+        <button onClick={handleLogout} style={{background:'#F3F4F6', color:'#6B7280', border:'none', borderRadius:'10px', padding:'10px 14px', fontSize:'12px', fontWeight:700}}>로그아웃</button>
       </div>
 
       <div style={{background:'white', borderRadius:'16px', padding:'12px', marginTop:'12px', display:'flex', gap:'8px'}}>
@@ -109,7 +108,6 @@ export default function MyPage(){
       {activeTab==='flipbook' && (
         <div style={{background:'white', borderRadius:'20px', padding:'16px', marginTop:'12px'}}>
           <div style={{fontWeight:800, fontSize:'14px'}}>📚 기출 / 예상 문제 PDF 관리</div>
-
           <div style={{background:'#FFFBEB', borderRadius:'16px', padding:'12px', border:'1px dashed #F59E0B', marginTop:'12px', marginBottom:'12px'}}>
             <div style={{display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px'}}>
               <button onClick={()=>{setSelectedType('전체'); setUploadType('기출문제')}} style={{padding:'10px 14px', borderRadius:'20px', border:'none', background: selectedType==='전체' ? '#FFD60A' : '#111827', color: selectedType==='전체' ? '#111827' : 'white', fontSize:'12px', fontWeight:800}}>전체 ({flipbooks.length})</button>
@@ -129,7 +127,6 @@ export default function MyPage(){
               <button onClick={handleCreateType} style={{background:'#111827', color:'white', border:'none', borderRadius:'10px', padding:'12px 20px', fontSize:'13px', fontWeight:800}}>생성</button>
             </div>
           </div>
-
           <div style={{background:'#F8F9FB', borderRadius:'16px', padding:'12px', border:'1px solid #F3F4F6', marginBottom:'16px'}}>
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}}>
               {problemTypes.map((t:any)=>{
@@ -143,14 +140,12 @@ export default function MyPage(){
               })}
             </div>
           </div>
-
           <form onSubmit={async(e)=>{ e.preventDefault(); const fileInput=document.getElementById('pdfFile') as HTMLInputElement; const file=fileInput?.files?.[0]; if(!file || !uploadTitle.trim()){ alert('제목과 파일 필요'); return } setUploading(true); try{ const fd=new FormData(); fd.append('file', file); fd.append('title', uploadTitle); fd.append('category', uploadCategory); fd.append('type', uploadType); const res=await fetch('/api/admin/upload-pdf', {method:'POST', body:fd}); if(res.ok){ alert('업로드 완료!'); setUploadTitle(''); if(fileInput) fileInput.value=''; loadData() } } finally{ setUploading(false) } }} style={{background:'#F8F9FB', borderRadius:'16px', padding:'16px', display:'grid', gap:'12px'}}>
             <div><div style={{fontSize:'12px', fontWeight:600, marginBottom:'6px'}}>자격증 분류</div><select value={uploadCategory} onChange={e=>setUploadCategory(e.target.value)} style={{width:'100%', padding:'12px', borderRadius:'10px', border:'1px solid #E5E7EB', background:'white'}}>{allQualifications.map((name, idx)=> <option key={idx} value={name}>{name}</option>)}</select></div>
             <div><div style={{fontSize:'12px', fontWeight:600, marginBottom:'6px'}}>제목</div><input value={uploadTitle} onChange={e=>setUploadTitle(e.target.value)} placeholder="제목 입력" style={{width:'100%', padding:'12px', borderRadius:'10px', border:'1px solid #E5E7EB'}} /></div>
             <div><div style={{fontSize:'12px', fontWeight:600, marginBottom:'6px'}}>PDF 파일</div><div style={{display:'flex', gap:'8px', background:'white', padding:'10px', borderRadius:'10px', border:'1px solid #E5E7EB'}}><label htmlFor="pdfFile" style={{background:'#F3F4F6', padding:'8px 14px', borderRadius:'8px', fontSize:'12px', cursor:'pointer'}}>파일 선택</label><input id="pdfFile" type="file" accept=".pdf" style={{display:'none'}} /><span style={{fontSize:'12px', color:'#6B7280'}}>선택된 파일 없음</span></div></div>
             <button type="submit" disabled={uploading} style={{background:'#FFD60A', border:'none', borderRadius:'12px', padding:'14px', fontWeight:800}}>{uploading?'업로드중...':`📤 ${uploadType} 업로드`}</button>
           </form>
-
           <div style={{marginTop:'16px'}}>
             <div style={{fontWeight:700, fontSize:'13px'}}>{selectedType} 목록 - {filtered.length}개</div>
             {filtered.map((f:any)=>(
@@ -163,7 +158,8 @@ export default function MyPage(){
         </div>
       )}
 
-      <div style={{background:'#111827', borderRadius:'16px', padding:'16px', marginTop:'16px'}}>
+      {/* 로그아웃 - 검정 바탕 없이 깔끔하게! */}
+      <div style={{background:'white', borderRadius:'16px', padding:'16px', marginTop:'16px'}}>
         <button onClick={handleLogout} style={{width:'100%', background:'#DC2626', color:'white', border:'none', borderRadius:'12px', padding:'16px', fontSize:'14px', fontWeight:800}}>
           🚪 로그아웃 - {user.loginId}
         </button>
