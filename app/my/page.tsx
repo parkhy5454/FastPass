@@ -1,10 +1,11 @@
+import { ALL_CERTS } from '@/lib/certs'
 
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ChangePassword from '@/components/ChangePassword'
 
-const QUALIFICATIONS = ['전기기사','전기산업기사','전기공사기사','전기공사산업기사','토목기사','토목산업기사','건축기사','건축산업기사','건축전기설비기술사','발송배전기술사','건축전기설비기사','정보통신기사','소방설비기사','기계기사']
+const QUALIFICATIONS: string[] = ALL_CERTS.map(c=> c.name)
 
 export default function MyPage(){
   const [user,setUser]=useState<any>(null)
