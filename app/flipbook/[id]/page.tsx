@@ -11,7 +11,7 @@ export default function FlipbookPage({ params }: { params: { id: string } }){
     fetch(`/api/admin/flipbooks`).then(r=>r.json()).then(data=>{
       const list = Array.isArray(data) ? data : []
       const found = list.find((f:any)=> f.id === params.id)
-      setFlipbook(found || { id: params.id, title: '기출문제', category:'전기기사', fileUrl: '', type:'기출문제' })
+      setFlipbook(found || { id: params.id, title: '기출문제', category:'전기기사', pdfUrl: '', type:'기출문제' })
       setLoading(false)
     }).catch(()=>setLoading(false))
   },[params.id])
@@ -29,12 +29,19 @@ export default function FlipbookPage({ params }: { params: { id: string } }){
         <div style={{fontWeight:800}}>{flipbook.category} - {flipbook.title}</div>
       </div>
       
-      <FlipbookViewer 
-        title={flipbook.title}
-        pdfUrl={flipbook.fileUrl}
-        pages={mockPages}
-        allowDownload={true}
-      />
+      {flipbook.pdfUrl ? (
+        <iframe
+          src={flipbook.pdfUrl}
+          title={flipbook.title}
+          style={{width:'100%', height:'80vh', border:'none', borderRadius:12, background:'white'}}
+        />
+      ) : (
+        <FlipbookViewer
+          title={flipbook.title}
+          pages={mockPages}
+          allowDownload={true}
+        />
+      )}
 
       <div style={{marginTop:'20px', background:'white', borderRadius:'12px', padding:'16px'}}>
         <div style={{fontWeight:700, fontSize:'14px'}}>📚 {flipbook.title}</div>
