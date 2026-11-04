@@ -97,6 +97,7 @@ export default function JobRegisterPage(){
   const [showCertList,setShowCertList]=useState(false)
   const [files,setFiles]=useState<UploadedFile[]>([])
   const [uploading,setUploading]=useState(false)
+  const [editId,setEditId]=useState<string>('')
   const fileRef=useRef<HTMLInputElement>(null)
   const router=useRouter()
 
@@ -106,6 +107,20 @@ export default function JobRegisterPage(){
       setUser(d.user)
       setForm(f=> ({...f, company: d.user.name||d.user.loginId||''}))
     }).catch(()=> router.push('/login'))
+  },[])
+
+  // 수정 모드: ?edit=ID 로 들어오면 기존 내용을 채웁니다.
+  useEffect(()=>{
+    const id = new URLSearchParams(window.location.search).get('edit')
+    if(!id) return
+    fetch(`/api/jobs?id=${encodeURIComponent(id)}`, {credentials:'include'}).then(r=>r.json()).then(d=>{
+      if(!d.job){ alert(d.error||'공고를 불러오지 못했습니다'); return }
+      const j=d.job
+      setEditId(j.id)
+      setType(j.type==='구직'?'구직':'구인')
+      setForm({title:j.title||'', company:j.company||'', location:j.location||'서울', salary:j.salary||'', cert:j.cert||'전기기사', description:j.description||'', contact:j.contact||''})
+      setFiles(Array.isArray(j.files)?j.files:[])
+    }).catch(()=> alert('공고를 불러오지 못했습니다'))
   },[])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>){
@@ -151,15 +166,13 @@ export default function JobRegisterPage(){
     if(!form.company.trim()) return alert('회사/이름을 입력하세요')
     setLoading(true)
     try{
-      const res=await fetch('/api/jobs',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        credentials:'include',
-        body: JSON.stringify({type, ...form, files, paid:true, paidAmount:0, paymentId:'test-skip'})
-      })
+      const payload = {type, ...form, files}
+      const res = editId
+        ? await fetch('/api/jobs',{method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({id: editId, ...payload})})
+        : await fetch('/api/jobs',{method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload)})
       const data=await res.json()
-      if(!res.ok) throw new Error(data.error||'등록 실패')
-      alert(`${type} 등록 완료!`)
+      if(!res.ok) throw new Error(data.error||'저장 실패')
+      alert(editId ? '수정 완료!' : `${type} 등록 완료!`)
       router.push('/jobs')
     }catch(e:any){ alert(e.message) }finally{ setLoading(false) }
   }
@@ -173,7 +186,7 @@ export default function JobRegisterPage(){
       <div style={{maxWidth:480, margin:'0 auto', padding:16}}>
         <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:16}}>
           <button onClick={()=>router.back()} style={{width:32, height:32, borderRadius:16, background:'white', border:'1px solid #E9ECEF', cursor:'pointer'}}>←</button>
-          <div style={{fontSize:18, fontWeight:800, color:'#1a1a2e'}}>구인/구직 등록</div>
+          <div style={{fontSize:18, fontWeight:800, color:'#1a1a2e'}}>{editId ? '구인/구직 수정' : '구인/구직 등록'}</div>
         </div>
 
         <div style={{background:'#FFF3CD', border:'1px solid #FFE69C', borderRadius:12, padding:10, marginBottom:12, fontSize:11, color:'#856404'}}>
