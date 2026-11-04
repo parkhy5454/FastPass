@@ -1,12 +1,10 @@
 
-// Fixed: Works both server and client - no crash on client
 const JWT_SECRET = (typeof process !== 'undefined' ? process.env.JWT_SECRET : null) || 'fastpass-secret-key-2024-parkhy5454'
 
 function base64urlEncode(str:string){
   if(typeof Buffer !== 'undefined'){
     return Buffer.from(str).toString('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
   }
-  // Browser fallback
   return btoa(str).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
 }
 function base64urlDecode(str:string){
@@ -19,15 +17,8 @@ function base64urlDecode(str:string){
 }
 
 function getCrypto(){
-  if(typeof window !== 'undefined'){
-    // Browser - return null, use simple hash
-    return null
-  }
-  try{
-    return require('crypto')
-  }catch{
-    return null
-  }
+  if(typeof window !== 'undefined'){ return null }
+  try{ return require('crypto') }catch{ return null }
 }
 
 export function createJWT(payload:any){
@@ -43,7 +34,6 @@ export function createJWT(payload:any){
     const signature = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
     return `${data}.${signature}`
   }
-  // Browser fallback - simple (not secure, but won't crash)
   return `${data}.browser-fallback`
 }
 export const signJWT = createJWT
@@ -54,17 +44,12 @@ export function verifyJWT(token:string){
     const parts = token.split('.')
     if(parts.length !== 3) return null
     const [headerB64, payloadB64, signature] = parts
-    // If browser fallback signature, just decode payload
     if(signature === 'browser-fallback'){
-      try{
-        const payloadJson = base64urlDecode(payloadB64)
-        return JSON.parse(payloadJson)
-      }catch{ return null }
+      try{ const payloadJson = base64urlDecode(payloadB64); return JSON.parse(payloadJson) }catch{ return null }
     }
     const data = `${headerB64}.${payloadB64}`
     const crypto = getCrypto()
     if(!crypto){
-      // Browser - just decode without verifying
       try{
         const payloadJson = base64urlDecode(payloadB64)
         const payload = JSON.parse(payloadJson)
@@ -85,24 +70,18 @@ export function verifyJWT(token:string){
 
 export function hashPassword(password:string){
   const crypto = getCrypto()
-  if(crypto){
-    return crypto.createHash('sha256').update(password + JWT_SECRET).digest('hex')
-  }
-  // Browser fallback - simple
+  if(crypto){ return crypto.createHash('sha256').update(password + JWT_SECRET).digest('hex') }
   let hash = 0
   const str = password + JWT_SECRET
   for(let i=0;i<str.length;i++){ hash = ((hash<<5)-hash)+str.charCodeAt(i); hash|=0 }
   return hash.toString(16)
 }
-export function verifyPassword(password:string, hash:string){
-  return hashPassword(password) === hash
-}
+export function verifyPassword(password:string, hash:string){ return hashPassword(password) === hash }
 export function generateCSRFToken(){
   const crypto = getCrypto()
   if(crypto) return crypto.randomBytes(32).toString('hex')
   return Math.random().toString(36).substring(2)+Date.now().toString(36)
 }
-
 export function isAdmin(loginIdOrPayload:any, roleOrUndefined?:any){
   if(!loginIdOrPayload) return false
   if(typeof loginIdOrPayload === 'string'){
@@ -114,7 +93,6 @@ export function isAdmin(loginIdOrPayload:any, roleOrUndefined?:any){
   const p = loginIdOrPayload
   return p.role === 'ADMIN' || p.loginId?.includes('parkhy5454') || p.loginId === 'admin' || p.email?.includes('parkhy5454') || p.loginId === 'demo'
 }
-
 export function validateLoginId(loginId:string){
   if(!loginId || loginId.length < 3) return {valid:false, error:'아이디는 3자 이상'}
   if(loginId.length > 20) return {valid:false, error:'아이디는 20자 이하'}
@@ -138,7 +116,13 @@ export function validatePDFFile(file:any){
 }
 export function validatePDFMagicBytes(buffer:any){
   try{
-    const header = typeof Buffer !== 'undefined' ? Buffer.from(buffer.slice(0,4)).toString() : String.fromCharCode(...new Uint8Array(buffer.slice(0,4)))
+    let header = ''
+    if(typeof Buffer !== 'undefined'){
+      header = Buffer.from(buffer.slice(0,4)).toString()
+    }else{
+      const arr = new Uint8Array(buffer.slice(0,4))
+      header = String.fromCharCode(arr[0]||0, arr[1]||0, arr[2]||0, arr[3]||0)
+    }
     if(!header.startsWith('%PDF')) return {valid:false, error:'PDF 파일이 아닙니다'}
     return {valid:true}
   }catch{ return {valid:false, error:'PDF 검증 실패'} }
