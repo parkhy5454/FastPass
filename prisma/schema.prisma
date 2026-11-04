@@ -21,6 +21,7 @@ model User {
   role                 String    @default("USER")
   points               Int       @default(0)
   pointsUpdatedAt      DateTime?
+  lastAttendance       String?   // 마지막 출석 포인트 받은 날짜 (YYYY-MM-DD, 한국 시간)
   referredBy           String?   // 추천인 loginId
   referralCode         String?   @unique
   referralRewarded     Boolean   @default(false) // 추천인 포인트 지급 완료 여부

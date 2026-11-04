@@ -14,6 +14,7 @@ export default function HomePage(){
       setUser(d.user)
     }).catch(()=> router.push('/login'))
     fetch('/api/stats').then(r=>r.json()).then(d=> setStats(d)).catch(()=>{})
+    fetch('/api/points/attendance', {method:'POST', credentials:'include'}).catch(()=>{})
   },[])
 
   if(!user) return <div style={{padding:40, textAlign:'center', background:'#F8F9FB', minHeight:'100vh'}}>로딩중...</div>
