@@ -15,16 +15,29 @@ export default function LoginPage(){
     if(!password.trim()) return alert('비밀번호를 입력하세요')
     setLoading(true)
     try{
+      console.log('Trying login:', loginId)
       const res=await fetch('/api/auth/login',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         credentials:'include',
         body: JSON.stringify({loginId: loginId.trim(), password})
       })
-      const data=await res.json()
-      if(!res.ok) throw new Error(data.error||'로그인 실패')
 
-      // Save to localStorage for fallback
+      let data:any = {}
+      try{
+        data = await res.json()
+      }catch(parseError){
+        console.error('JSON parse error', parseError)
+        throw new Error('서버 응답 오류 - 다시 시도해주세요')
+      }
+
+      console.log('Login response:', res.status, data)
+
+      if(!res.ok){
+        const errMsg = typeof data.error === 'string' ? data.error : (data.error?.error || data.message || JSON.stringify(data.error) || '로그인 실패')
+        throw new Error(errMsg)
+      }
+
       if(data.user){
         localStorage.setItem('user', JSON.stringify(data.user))
       }
@@ -32,7 +45,14 @@ export default function LoginPage(){
       alert('로그인 성공!')
       router.push('/')
     }catch(e:any){
-      alert(e.message)
+      console.error('Login failed', e)
+      const msg = e.message || '로그인 실패'
+      // Avoid [object Object]
+      if(typeof msg === 'object'){
+        alert(JSON.stringify(msg))
+      }else{
+        alert(msg)
+      }
     }finally{ setLoading(false) }
   }
 
@@ -58,7 +78,7 @@ export default function LoginPage(){
         <button onClick={()=> router.push('/')} style={{width:'100%', marginTop:12, background:'none', border:'none', color:'#888', fontSize:12, cursor:'pointer'}}>홈으로 돌아가기</button>
 
         <div style={{marginTop:16, padding:10, background:'#F8F9FA', borderRadius:8, fontSize:11, color:'#666'}}>
-          💡 테스트 계정: demo / 1234<br/>관리자: parkhy5454@gmail.com
+          💡 테스트 계정: demo / 1234<br/>관리자: parkhy5454@gmail.com / admin
         </div>
       </div>
     </div>

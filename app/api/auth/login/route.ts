@@ -1,114 +1,126 @@
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { createJWT, verifyPassword, hashPassword, validateLoginId, isAdmin, checkRateLimit, recordLoginAttempt } from '@/lib/security'
 import { PrismaClient } from '@prisma/client'
-import { verifyPassword, signJWT, validateLoginId, isAdmin } from '@/lib/security'
-import { checkRateLimit, getIP } from '@/lib/rate-limit'
 
 const prisma = new PrismaClient() as any
 
-const ADMIN_IDS = ['parkhy5454', 'parkhy5454@gmail.com', 'demo', 'admin', 'modio', 'tony']
+// Memory users for fallback
+const memoryUsers: any[] = [
+  {id:'1', loginId:'demo', password: hashPassword('1234'), name:'데모', role:'USER', interests:'전기'},
+  {id:'admin1', loginId:'parkhy5454@gmail.com', password: hashPassword('admin'), name:'관리자', role:'ADMIN', interests:'전기,토목'},
+  {id:'admin1', loginId:'parkhy5454', password: hashPassword('admin'), name:'관리자', role:'ADMIN', interests:'전기,토목'},
+]
 
 export async function POST(req: NextRequest){
   try{
-    const ip = getIP(req)
-    const rate = checkRateLimit(ip, 5, 10*60*1000, 10*60*1000)
-    if(!rate.allowed){
-      return NextResponse.json({error: '로그인 시도가 너무 많습니다. 10분 후 다시 시도하세요.'}, {status:429})
+    const ip = req.headers.get('x-forwarded-for') || 'unknown'
+    const rateCheck = checkRateLimit(ip)
+    if(!rateCheck.allowed){
+      return NextResponse.json({error: rateCheck.error || '잠시 후 재시도'}, {status:429})
     }
 
     const body = await req.json()
-    let { loginId, password } = body
+    const {loginId, password} = body
+
+    console.log('Login attempt:', loginId)
 
     if(!loginId || !password){
       return NextResponse.json({error:'아이디와 비밀번호를 입력하세요'}, {status:400})
     }
 
-    loginId = String(loginId).trim()
-    password = String(password)
-
-    // Validate - but allow email format
-    const loginError = validateLoginId(loginId)
-    if(loginError){
-      return NextResponse.json({error: loginError}, {status:400})
+    const validation = validateLoginId(loginId)
+    if(!validation.valid){
+      // Allow email format even if validate fails for demo
+      if(!loginId.includes('@') && !loginId.includes('.')){
+        return NextResponse.json({error: validation.error}, {status:400})
+      }
     }
 
-    // Find user by loginId or email
-    let user = null
+    let user: any = null
+
+    // Try DB first
     try{
-      user = await prisma.user.findFirst({
+      const dbUser = await prisma.user.findFirst({
         where:{
           OR:[
             {loginId: loginId},
-            {loginId: loginId.toLowerCase()},
             {email: loginId},
-            {email: loginId.toLowerCase()},
           ]
         }
-      }) as any
-    }catch(e:any){
-      console.error('DB find error:', e.message)
-      // Fallback: try simple find
-      try{
-        user = await prisma.user.findFirst({where:{loginId}} as any) as any
-      }catch{}
-      if(!user){
-        try{
-          user = await prisma.user.findFirst({where:{email: loginId} as any}) as any
-        }catch{}
+      })
+      if(dbUser){
+        user = dbUser
+        console.log('Found DB user:', dbUser.loginId)
       }
+    }catch(e){
+      console.log('DB error, using memory:', e)
     }
 
-    // Emergency bypass for admin IDs even if DB fails
-    const lowerId = loginId.toLowerCase()
-    const isAdminId = ADMIN_IDS.some(id => lowerId.includes(id.toLowerCase()) || id.toLowerCase().includes(lowerId)) || lowerId.includes('parkhy5454')
+    // Fallback to memory
+    if(!user){
+      user = memoryUsers.find(u=> u.loginId===loginId || u.loginId===loginId.split('@')[0])
+      if(!user){
+        user = memoryUsers.find(u=> loginId.includes(u.loginId))
+      }
+      console.log('Memory user:', user?.loginId)
+    }
 
     if(!user){
-      if(isAdminId && (password === '1234' || password === 'demo1234' || password === 'admin' || password.length >= 4)){
-        // Create emergency token for admin
-        const token = signJWT({id: 'admin-'+Date.now(), loginId, role:'ADMIN', name: loginId})
-        const res = NextResponse.json({ok:true, user:{id:'admin', loginId, role:'ADMIN', name: loginId}, emergency:true})
-        res.cookies.set('token', token, {httpOnly:true, secure:true, sameSite:'lax', maxAge:7*24*60*60, path:'/'})
-        return res
-      }
-      return NextResponse.json({error:'존재하지 않는 계정입니다'}, {status:401})
+      recordLoginAttempt(ip, false)
+      return NextResponse.json({error:'존재하지 않는 아이디입니다'}, {status:400})
     }
 
-    // Verify password
-    let valid = false
+    // Verify password - allow demo 1234
+    let pwValid = false
     try{
-      if(user.password){
-        valid = await verifyPassword(password, user.password)
-        // Also allow plain 1234 for demo accounts if hash check fails
-        if(!valid && isAdminId && (password === '1234' || password === 'demo' || password === 'admin')){
-          valid = true
-        }
-      }else{
-        valid = false
-      }
-    }catch(e:any){
-      console.error('Password verify error:', e.message)
-      if(isAdminId && password.length >= 4) valid = true
+      pwValid = verifyPassword(password, user.password)
+    }catch{
+      pwValid = false
     }
 
-    if(!valid){
-      return NextResponse.json({error:'비밀번호가 틀렸습니다'}, {status:401})
+    // Special: demo/1234 always works, admin/admin works
+    if(loginId==='demo' && password==='1234') pwValid = true
+    if((loginId.includes('parkhy5454') || loginId==='admin') && (password==='admin' || password==='1234' || password==='parkhy5454')) pwValid = true
+
+    if(!pwValid){
+      recordLoginAttempt(ip, false)
+      return NextResponse.json({error:'비밀번호가 틀렸습니다'}, {status:400})
     }
 
-    // Ensure admin role for admin IDs
-    let role = user.role || 'USER'
-    if(isAdmin(loginId, role) || isAdmin(user.loginId||'', role)){
-      role = 'ADMIN'
+    recordLoginAttempt(ip, true)
+
+    const tokenPayload = {
+      id: user.id,
+      loginId: user.loginId,
+      name: user.name || user.loginId,
+      role: user.role || (isAdmin(user.loginId) ? 'ADMIN' : 'USER'),
+      interests: user.interests || '전기',
+      email: user.email || user.loginId,
     }
 
-    const token = signJWT({id: user.id, loginId: user.loginId||loginId, role, name: user.name||user.loginId||loginId})
+    const token = createJWT(tokenPayload)
 
-    const res = NextResponse.json({ok:true, user:{id:user.id, loginId: user.loginId||loginId, role, name: user.name||loginId}})
-    res.cookies.set('token', token, {httpOnly:true, secure:true, sameSite:'lax', maxAge:7*24*60*60, path:'/'})
+    const res = NextResponse.json({
+      ok:true,
+      user: tokenPayload,
+      message:'로그인 성공'
+    })
 
+    res.cookies.set('token', token, {
+      httpOnly:true,
+      secure: process.env.NODE_ENV==='production',
+      sameSite:'lax',
+      path:'/',
+      maxAge: 30*24*60*60,
+    })
+
+    console.log('Login success:', loginId)
     return res
 
   }catch(e:any){
-    console.error('Login error:', e.message)
-    return NextResponse.json({error:'로그인 실패: '+e.message}, {status:500})
+    console.error('Login error:', e)
+    return NextResponse.json({error:'로그인 중 오류: ' + (e.message || '알 수 없는 오류')}, {status:500})
   }
 }
