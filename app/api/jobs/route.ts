@@ -5,7 +5,8 @@ import { verifyJWT } from '@/lib/security'
 import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient() as any
 let memoryJobs: any[] = [
-  {id:'1', type:'구인', title:'전기기사 구인 - 삼성전기', company:'삼성전기', location:'서울', salary:'4000만원~', cert:'전기기사', description:'전기기사 우대', contact:'010-1234-5678', createdAt: new Date().toISOString(), userId:'admin', paid:true, paidAmount:0, hireConfirmed:false},
+  {id:'1', type:'구인', title:'전기기사 구인 - 삼성전기', company:'삼성전기', location:'서울', salary:'4000만원~', cert:'전기기사', description:'전기기사 우대, 연봉 4000만원 이상', contact:'010-1234-5678', createdAt: new Date().toISOString(), userId:'admin', files:[], paid:true, paidAmount:0, hireConfirmed:false},
+  {id:'2', type:'구직', title:'전기기사 구직 - 경력 5년', company:'홍길동', location:'경기', salary:'협의', cert:'전기기사', description:'전기기사 5년 경력, 즉시 근무 가능', contact:'010-9876-5432', createdAt: new Date().toISOString(), userId:'user2', files:[], paid:true, paidAmount:0, hireConfirmed:false},
 ]
 
 export async function GET(req: NextRequest){
@@ -25,10 +26,10 @@ export async function POST(req: NextRequest){
     if(!token) return NextResponse.json({error:'로그인 필요'},{status:401})
     const payload = verifyJWT(token)
     if(!payload) return NextResponse.json({error:'인증 만료'},{status:401})
-    const {type, title, company, location, salary, cert, description, contact} = await req.json()
+    const body = await req.json()
+    const {type, title, company, location, salary, cert, description, contact, files} = body
     if(!title || !company || !type) return NextResponse.json({error:'제목, 회사, 구인/구직 필수'},{status:400})
 
-    // 결제 체크 스킵 - 테스트 모드
     const newJob = {
       id: Date.now().toString(),
       type, title, company,
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest){
       cert: cert||'전기기사',
       description: description||'',
       contact: contact||'',
+      files: files||[],
       createdAt: new Date().toISOString(),
       userId: payload.id,
       userLoginId: payload.loginId,
