@@ -1,22 +1,14 @@
 
-import { NextRequest, NextResponse } from 'next/server'
-import { generateCSRFToken } from '@/lib/csrf'
-import { cookies } from 'next/headers'
-import { verifyJWT } from '@/lib/security'
+import { NextResponse } from 'next/server'
+import { generateCSRFToken } from '@/lib/security'
 
 export async function GET(){
   try{
-    const token = cookies().get('token')?.value
-    let sessionId = 'anonymous'
-    if(token){
-      const payload = verifyJWT(token)
-      if(payload) sessionId = payload.id || payload.loginId || 'user'
-    }
-    const csrfToken = generateCSRFToken(sessionId)
-    const res = NextResponse.json({csrfToken})
-    res.cookies.set('csrf', csrfToken, {httpOnly:false, secure:true, sameSite:'lax', maxAge:60*60, path:'/'})
+    const token = generateCSRFToken()
+    const res = NextResponse.json({csrfToken: token})
+    res.cookies.set('csrf', token, {httpOnly:false, sameSite:'lax', path:'/', maxAge:60*60*24})
     return res
   }catch(e:any){
-    return NextResponse.json({error:e.message},{status:500})
+    return NextResponse.json({csrfToken: 'fallback-token-'+Date.now(), error:e.message})
   }
 }

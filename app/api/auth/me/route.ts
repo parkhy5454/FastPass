@@ -11,7 +11,6 @@ export async function GET(req: NextRequest){
     const cookieStore = cookies()
     let token = cookieStore.get('token')?.value
 
-    // Also try Authorization header
     if(!token){
       const authHeader = req.headers.get('authorization')
       if(authHeader?.startsWith('Bearer ')){
@@ -19,20 +18,16 @@ export async function GET(req: NextRequest){
       }
     }
 
-    console.log('me API - token exists:', !!token)
-
     if(!token){
       return NextResponse.json({user:null, reason:'no_token'}, {status:200})
     }
 
     const payload = verifyJWT(token)
-    console.log('me API - payload:', payload)
 
     if(!payload){
       return NextResponse.json({user:null, reason:'invalid_token'}, {status:200})
     }
 
-    // Try DB
     try{
       const user = await prisma.user.findUnique({where:{id: payload.id}})
       if(user){
@@ -47,7 +42,6 @@ export async function GET(req: NextRequest){
       }
     }catch(e){ console.log('DB error in me', e) }
 
-    // Fallback - return payload as user
     return NextResponse.json({user:{
       id: payload.id,
       loginId: payload.loginId||payload.email||'user',
