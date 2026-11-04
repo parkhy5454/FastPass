@@ -47,6 +47,8 @@ export default function LearnPage(){
   const [selectedCert,setSelectedCert]=useState<string>('전기기사')
   const [flipbooks,setFlipbooks]=useState<any[]>([])
   useEffect(()=>{ fetch('/api/admin/flipbooks').then(r=>r.json()).then(d=> setFlipbooks(Array.isArray(d)?d:[])).catch(()=>{}) },[])
+  const [problemTypes,setProblemTypes]=useState<any[]>([])
+  useEffect(()=>{ fetch('/api/admin/problem-types').then(r=>r.json()).then(d=> setProblemTypes(Array.isArray(d?.types)?d.types:[])).catch(()=>{}) },[])
   const [myInterests,setMyInterests]=useState<string[]>(['전기기사'])
   const [interestGroups,setInterestGroups]=useState<string[]>(['전기'])
   const [onlyMine,setOnlyMine]=useState(true)
@@ -108,13 +110,6 @@ export default function LearnPage(){
 
   const levelFiltered = filteredCerts.filter(c=> c.level===level)
 
-  function getQuestionTypes(certName:string){
-    try{
-      const all = JSON.parse(localStorage.getItem('questionTypes')||'{}')
-      const types = all[certName] || ['기출 10년','예상문제']
-      return types
-    }catch{ return ['기출 10년','예상문제'] }
-  }
 
   if(isLoadingAuth){
     return <div style={{padding:40, textAlign:'center', background:'#F8F9FB', minHeight:'100vh', color:'#888'}}>로딩중...</div>
@@ -194,12 +189,13 @@ export default function LearnPage(){
                     <div style={{fontSize:11, color:'#888'}}>{cert.count}문제 보유 • {cert.level}</div>
                     <div style={{display:'flex', gap:6, marginTop:6}}>
                       {(()=>{
-                        const defaults: string[] = getQuestionTypes(cert.name)
-                        const dbTypes: string[] = Array.from(new Set(flipbooks.filter((f:any)=> f.category===cert.name && f.type).map((f:any)=> String(f.type))))
-                        const all: string[] = [...defaults, ...dbTypes.filter((t:string)=> defaults.indexOf(t) === -1)]
+                        const defaults: string[] = ['기출문제','예상문제']
+                        const dbTypes: string[] = problemTypes.filter((t:any)=> t.category===cert.name).map((t:any)=> String(t.name))
+                        const fbTypes: string[] = flipbooks.filter((f:any)=> f.category===cert.name && f.type).map((f:any)=> String(f.type))
+                        const all: string[] = Array.from(new Set([...defaults, ...dbTypes, ...fbTypes]))
                         return all.map((t:string)=>(
-                          <span key={t} onClick={dbTypes.indexOf(t) !== -1 ? (e)=>{ e.stopPropagation(); router.push(`/learn/flipbooks?cert=${encodeURIComponent(cert.name)}&type=${encodeURIComponent(t)}`) } : undefined}
-                            style={{padding:'3px 8px', background:'#EFF6FF', color:'#3367D6', borderRadius:12, fontSize:10, fontWeight:600, cursor: dbTypes.indexOf(t) !== -1 ? 'pointer' : 'default'}}>{t}</span>
+                          <span key={t} onClick={(e)=>{ e.stopPropagation(); router.push(`/learn/flipbooks?cert=${encodeURIComponent(cert.name)}&type=${encodeURIComponent(t)}`) }}
+                            style={{padding:'3px 8px', background:'#EFF6FF', color:'#3367D6', borderRadius:12, fontSize:10, fontWeight:600, cursor:'pointer'}}>{t}</span>
                         ))
                       })()}
                     </div>
