@@ -164,6 +164,14 @@ export default function MyPage(){
           </div>
         )}
 
+        <div style={{background:'white', borderRadius:16, padding:16, marginBottom:12, border:'1px solid #EEF2F7'}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:10}}>고객 지원</div>
+          <div style={{display:'flex', gap:8}}>
+            <a href="/inquiry" style={{flex:1, textAlign:'center', padding:12, borderRadius:10, background:'#1a1a2e', color:'white', fontWeight:700, fontSize:13, textDecoration:'none'}}>문의하기</a>
+            <a href="/inquiry?tab=mine" style={{flex:1, textAlign:'center', padding:12, borderRadius:10, background:'white', border:'1px solid #E9ECEF', color:'#1a1a2e', fontWeight:700, fontSize:13, textDecoration:'none'}}>내 문의 내역</a>
+          </div>
+        </div>
+
         <ChangePassword />
         <button onClick={async()=>{ await fetch('/api/auth/logout',{method:'POST'}); window.location.href='/login' }} style={{width:'100%', padding:14, background:'white', color:'#C53030', border:'1px solid #FFE0E0', borderRadius:12, fontWeight:700, fontSize:13, cursor:'pointer', marginBottom:80}}>로그아웃 - {user.loginId}</button>
       </div>
