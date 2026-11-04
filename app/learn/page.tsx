@@ -1,211 +1,187 @@
 
 'use client'
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Level = '전체'|'기술사'|'기능장'|'기사'|'산업기사'|'기능사'
-type CertCategory = {name:string, count:number, level:Level, group:string, hot?:boolean}
+const QUAL_FAMILIES: Record<string, string[]> = {
+  '전기': ['전기기사','전기공사기사','전기철도기사','전기공사산업기사','건축전기설비기술사','발송배전기술사','전기응용기술사','전기안전기술사','철도신호기사','전기철도기술사','소방설비기사(전기)','전기기능장','전기산업기사','전기공사기능사','철도신호산업기사','건축전기설비기사','전기기능사'],
+  '토목': ['토목기사','토목산업기사','측량및지형공간정보기사','건설안전기사','토목시공기술사','토질및기초기술사'],
+  '건축': ['건축기사','건축산업기사'],
+  '기계': ['기계기사','기계설계기사','일반기계기사'],
+  '정보통신': ['정보처리기사','정보통신기사'],
+}
 
-const LEVELS: Level[] = ['기술사','기능장','기사','산업기사','기능사']
-
-const ALL_CERTS: CertCategory[] = [
-  {name:'전기기사', count:300, level:'기사', group:'전기', hot:true},
-  {name:'전기공사기사', count:200, level:'기사', group:'전기'},
-  {name:'전기철도기사', count:200, level:'기사', group:'전기'},
-  {name:'전기공사산업기사', count:180, level:'산업기사', group:'전기'},
-  {name:'건축전기설비기술사', count:150, level:'기술사', group:'전기'},
-  {name:'발송배전기술사', count:120, level:'기술사', group:'전기'},
-  {name:'전기응용기술사', count:120, level:'기술사', group:'전기'},
-  {name:'전기안전기술사', count:130, level:'기술사', group:'전기'},
-  {name:'철도신호기사', count:180, level:'기사', group:'전기'},
-  {name:'전기철도기술사', count:100, level:'기술사', group:'전기'},
-  {name:'소방설비기사(전기)', count:200, level:'기사', group:'전기'},
-  {name:'전기기능장', count:250, level:'기능장', group:'전기'},
-  {name:'전기산업기사', count:220, level:'산업기사', group:'전기'},
-  {name:'전기공사기능사', count:150, level:'기능사', group:'전기'},
-  {name:'철도신호산업기사', count:140, level:'산업기사', group:'전기'},
-  {name:'건축전기설비기사', count:190, level:'기사', group:'전기'},
-  {name:'전기기능사', count:160, level:'기능사', group:'전기'},
-  {name:'토목기사', count:280, level:'기사', group:'토목', hot:true},
-  {name:'토목산업기사', count:200, level:'산업기사', group:'토목'},
-  {name:'측량및지형공간정보기사', count:180, level:'기사', group:'토목'},
-  {name:'건설안전기사', count:220, level:'기사', group:'토목'},
-  {name:'토목시공기술사', count:120, level:'기술사', group:'토목'},
-  {name:'토질및기초기술사', count:100, level:'기술사', group:'토목'},
-  {name:'건축기사', count:300, level:'기사', group:'건축', hot:true},
-  {name:'건축산업기사', count:200, level:'산업기사', group:'건축'},
-  {name:'기계기사', count:280, level:'기사', group:'기계', hot:true},
-  {name:'기계설계기사', count:200, level:'기사', group:'기계'},
-  {name:'일반기계기사', count:250, level:'기사', group:'기계'},
-  {name:'정보처리기사', count:300, level:'기사', group:'정보통신', hot:true},
-  {name:'정보통신기사', count:200, level:'기사', group:'정보통신'},
-]
+type ProblemType = { id:string, qual:string, name:string, count?:number, createdAt:string }
 
 export default function LearnPage(){
   const [user,setUser]=useState<any>(null)
-  const [level,setLevel]=useState<Level>('기사')
-  const [selectedCert,setSelectedCert]=useState<string>('전기기사')
-  const [myInterests,setMyInterests]=useState<string[]>(['전기기사'])
-  const [interestGroups,setInterestGroups]=useState<string[]>(['전기'])
-  const [onlyMine,setOnlyMine]=useState(true)
-  const [isLoadingAuth,setIsLoadingAuth]=useState(true)
+  const [selectedQual,setSelectedQual]=useState('전기기사')
+  const [selectedType,setSelectedType]=useState('전체')
+  const [problemTypes,setProblemTypes]=useState<ProblemType[]>([])
+  const [myFamilies,setMyFamilies]=useState<string[]>([])
+  const [onlyMine,setOnlyMine]=useState(false)
+  const [pdfs,setPdfs]=useState<any[]>([])
   const router=useRouter()
 
   useEffect(()=>{
-    // Fixed auth check - don't immediately redirect, handle gracefully
-    fetch('/api/auth/me', {credentials:'include', cache:'no-store'})
-      .then(async r=>{
-        const d = await r.json()
-        console.log('auth/me:', d)
-        if(d.user){
-          setUser(d.user)
-          if(d.user.interests){
-            const ints = d.user.interests.split(',').map((s:string)=>s.trim()).filter(Boolean)
-            if(ints.length>0){
-              const groups = ['전기','토목','건축','기계','정보통신']
-              const foundGroups = ints.filter((i:string)=> groups.includes(i))
-              const foundCerts = ints.filter((i:string)=> !groups.includes(i))
-              if(foundGroups.length>0) setInterestGroups(foundGroups)
-              if(foundCerts.length>0) setMyInterests(foundCerts)
-              else if(foundGroups.length>0){
-                const certsInGroups = ALL_CERTS.filter(c=> foundGroups.includes(c.group)).map(c=> c.name)
-                setMyInterests(certsInGroups.slice(0,16))
-              }
+    fetch('/api/auth/me',{credentials:'include'}).then(r=>r.json()).then(d=>{
+      if(d.user){
+        setUser(d.user)
+        // Determine my families from user.interest or qual
+        const interests = d.user.interestFamilies || d.user.interests || []
+        if(interests.length>0) setMyFamilies(interests)
+        else {
+          // infer from qual
+          for(const [fam, quals] of Object.entries(QUAL_FAMILIES)){
+            if(quals.includes(d.user.qual || selectedQual)){
+              setMyFamilies([fam])
+              break
             }
           }
-        } else {
-          // For debugging - show what happened, but still allow access with localStorage
-          console.log('No user in response, trying localStorage fallback')
-          // Try localStorage fallback for dev
-          const localUser = localStorage.getItem('user')
-          if(localUser){
-            try{
-              const parsed = JSON.parse(localUser)
-              setUser(parsed)
-            }catch{}
-          }
         }
-      })
-      .catch(e=>{
-        console.log('auth error', e)
-        // Don't redirect immediately - try localStorage
-        const localUser = localStorage.getItem('user')
-        if(localUser){
-          try{
-            const parsed = JSON.parse(localUser)
-            setUser(parsed)
-          }catch{}
-        }
-      })
-      .finally(()=> setIsLoadingAuth(false))
+      }
+    }).catch(()=>{})
+
+    loadProblemTypes()
+
+    const handler = () => loadProblemTypes()
+    window.addEventListener('problemTypesUpdated', handler)
+    window.addEventListener('storage', handler)
+    return ()=> {
+      window.removeEventListener('problemTypesUpdated', handler)
+      window.removeEventListener('storage', handler)
+    }
   },[])
 
-  const filteredCerts = onlyMine
-    ? ALL_CERTS.filter(c=> myInterests.includes(c.name) || interestGroups.includes(c.group))
-    : ALL_CERTS
+  useEffect(()=>{ loadPdfs() },[selectedQual, selectedType])
 
-  const levelFiltered = filteredCerts.filter(c=> c.level===level)
-
-  function getQuestionTypes(certName:string){
+  function loadProblemTypes(){
     try{
-      const all = JSON.parse(localStorage.getItem('questionTypes')||'{}')
-      const types = all[certName] || ['기출 10년','예상문제']
-      return types
-    }catch{ return ['기출 10년','예상문제'] }
+      const raw = localStorage.getItem('problemTypes')
+      if(raw){
+        const parsed = JSON.parse(raw) as ProblemType[]
+        setProblemTypes(parsed)
+        // Auto select first type for current qual if not selected
+        const forQual = parsed.filter(t=> t.qual===selectedQual)
+        if(forQual.length>0 && selectedType==='전체'){
+          // keep 전체 as default but show types
+        }
+        return
+      }
+    }catch{}
+    // Fallback API
+    fetch('/api/problem-types').then(r=>r.json()).then(data=>{
+      if(data.problemTypes){
+        setProblemTypes(data.problemTypes)
+        localStorage.setItem('problemTypes', JSON.stringify(data.problemTypes))
+      }
+    }).catch(()=>{})
   }
 
-  if(isLoadingAuth){
-    return <div style={{padding:40, textAlign:'center', background:'#F8F9FB', minHeight:'100vh', color:'#888'}}>로딩중...</div>
+  async function loadPdfs(){
+    try{
+      const res = await fetch(`/api/pdfs?qual=${encodeURIComponent(selectedQual)}`)
+      const data = await res.json()
+      setPdfs(data.pdfs||[])
+    }catch{ setPdfs([]) }
   }
 
-  // If no user after all attempts, show login prompt but not auto-redirect loop
-  if(!user){
-    return (
-      <div style={{minHeight:'100vh', background:'#F8F9FB', display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-        <div style={{background:'white', borderRadius:16, padding:24, textAlign:'center', maxWidth:320, width:'100%', border:'1px solid #EEF2F7'}}>
-          <div style={{fontSize:24, marginBottom:10}}>🔒</div>
-          <div style={{fontSize:14, fontWeight:700, marginBottom:6}}>로그인이 필요합니다</div>
-          <div style={{fontSize:11, color:'#888', marginBottom:16}}>학습을 위해 로그인해주세요</div>
-          <button onClick={()=> router.push('/login')} style={{width:'100%', padding:12, background:'#FFD600', border:'none', borderRadius:10, fontWeight:700, cursor:'pointer'}}>로그인하러 가기</button>
-          <button onClick={()=>{ setUser({loginId:'demo', name:'테스트', interests:'전기'}); setMyInterests(ALL_CERTS.filter(c=> c.group==='전기').map(c=> c.name).slice(0,16)) }} style={{width:'100%', marginTop:8, padding:10, background:'white', border:'1px solid #E9ECEF', borderRadius:10, fontSize:11, cursor:'pointer'}}>임시로 둘러보기 (테스트)</button>
-          <div style={{marginTop:12, fontSize:10, color:'#AAA'}}>디버그: /api/auth/me가 user를 반환하지 않음. 쿠키 확인 필요</div>
-        </div>
-      </div>
-    )
-  }
+  const allQuals = Object.values(QUAL_FAMILIES).flat()
+  const displayQuals = onlyMine && myFamilies.length>0 ? allQuals.filter(q=> myFamilies.some(f=> QUAL_FAMILIES[f]?.includes(q))) : allQuals
+  const typesForQual = problemTypes.filter(t=> t.qual===selectedQual)
+  const hasCustomTypes = typesForQual.length>0
+
+  // For the image case: show "기출 10년" "예상문제" etc
+  const defaultTypes = [
+    {id:'default_10y', qual:selectedQual, name:'기출 10년', count:300},
+    {id:'default_expected', qual:selectedQual, name:'예상문제', count:300},
+  ]
+  const displayTypes = hasCustomTypes ? typesForQual : defaultTypes
+
+  const filteredPdfs = selectedType==='전체' ? pdfs : pdfs.filter((p:any)=> p.problemType===selectedType || p.type===selectedType)
 
   return (
     <div style={{minHeight:'100vh', background:'#F8F9FB', paddingBottom:100}}>
-      <div style={{maxWidth:480, margin:'0 auto', background:'white'}}>
-        <div style={{padding:20, paddingBottom:12}}>
-          <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:6}}>
-            <span style={{fontSize:20}}>📚</span>
-            <span style={{fontSize:18, fontWeight:800, color:'#1a1a2e'}}>학습</span>
-          </div>
-          <div style={{fontSize:12, color:'#888', marginBottom:12}}>원하는 자격증 레벨을 선택하세요</div>
+      <div style={{maxWidth:480, margin:'0 auto', padding:16}}>
+        <div style={{fontSize:18, fontWeight:800, color:'#1a1a2e', marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <span>학습</span>
+          <button onClick={()=> setOnlyMine(!onlyMine)} style={{fontSize:11, padding:'6px 10px', background: onlyMine ? '#1a1a2e' : 'white', color: onlyMine ? 'white' : '#666', border:'1px solid #E9ECEF', borderRadius:8, cursor:'pointer'}}>
+            {onlyMine ? '★ 내 관심만' : '전체 보기'}
+          </button>
+        </div>
 
-          <div style={{background:'#FFFEF5', border:'1px solid #FFE066', borderRadius:12, padding:10, display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
-            <div style={{fontSize:12, fontWeight:700, color:'#1a1a2e'}}>
-              <span style={{marginRight:4}}>👤</span>내 관심: {interestGroups.join(', ') || '전기'} ({myInterests.length}개)
-            </div>
-            <div style={{display:'flex', gap:6}}>
-              <button onClick={()=> setOnlyMine(!onlyMine)} style={{padding:'4px 10px', background: onlyMine ? '#1a1a2e' : 'white', color: onlyMine ? 'white' : '#666', border:'1px solid #E9ECEF', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer'}}>
-                {onlyMine ? `16개만` : '전체보기'}
+        <div style={{background:'white', borderRadius:16, padding:12, border:'1px solid #EEF2F7', marginBottom:12}}>
+          <div style={{fontSize:11, fontWeight:700, marginBottom:8}}>자격증 선택 ({displayQuals.length}개)</div>
+          <div style={{display:'flex', flexWrap:'wrap', gap:6, maxHeight:120, overflowY:'auto'}}>
+            {displayQuals.slice(0,20).map(q=> (
+              <button key={q} onClick={()=> { setSelectedQual(q); setSelectedType('전체') }} style={{padding:'6px 10px', background: selectedQual===q ? '#1a1a2e' : 'white', color: selectedQual===q ? 'white' : '#666', border:'1px solid #E9ECEF', borderRadius:8, fontSize:11, fontWeight: selectedQual===q ? 700 : 400, cursor:'pointer'}}>
+                {q}
               </button>
-              <button onClick={()=> router.push('/settings')} style={{padding:'4px 8px', background:'white', border:'1px solid #E9ECEF', borderRadius:20, fontSize:11, cursor:'pointer'}}>내 선택 1개</button>
-            </div>
+            ))}
+          </div>
+          <div style={{fontSize:10, color:'#888', marginTop:8}}>선택: {selectedQual} {myFamilies.length>0 && `(관심: ${myFamilies.join(', ')})`}</div>
+        </div>
+
+        <div style={{background:'white', borderRadius:16, padding:12, border:'1px solid #EEF2F7', marginBottom:12}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
+            <div style={{fontSize:11, fontWeight:700}}>{selectedQual} - 문제 유형 (MY 폴더와 연동됨)</div>
+            <div style={{fontSize:10, color:'#3367D6', background:'#EFF6FF', padding:'2px 6px', borderRadius:6}}>{hasCustomTypes ? `${typesForQual.length}개 연동` : '기본 2개'}</div>
           </div>
 
           <div style={{display:'flex', gap:6, overflowX:'auto', paddingBottom:4}}>
-            {LEVELS.map(l=>(
-              <button key={l} onClick={()=> setLevel(l)} style={{padding:'8px 14px', background: level===l ? '#1a1a2e' : '#F1F3F5', color: level===l ? 'white' : '#666', border:'none', borderRadius:20, fontSize:12, fontWeight: level===l ? 700 : 500, whiteSpace:'nowrap', cursor:'pointer'}}>{l}</button>
+            <button onClick={()=> setSelectedType('전체')} style={{whiteSpace:'nowrap', padding:'8px 12px', background: selectedType==='전체' ? 'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)' : 'white', color: selectedType==='전체' ? '#1a1a2e' : '#666', border: selectedType==='전체' ? 'none' : '1px solid #E9ECEF', borderRadius:20, fontSize:11, fontWeight:700, cursor:'pointer'}}>전체</button>
+            {displayTypes.map(t=> (
+              <button key={t.id} onClick={()=> setSelectedType(t.name)} style={{whiteSpace:'nowrap', padding:'8px 12px', background: selectedType===t.name ? '#1a1a2e' : 'white', color: selectedType===t.name ? 'white' : '#333', border:'1px solid #E9ECEF', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:4}}>
+                <span style={{width:6, height:6, background: hasCustomTypes ? '#34A853' : '#888', borderRadius:3, display:'inline-block'}}></span>
+                {t.name} {t.count ? `(${t.count})` : ''}
+              </button>
             ))}
+          </div>
+
+          {hasCustomTypes ? (
+            <div style={{fontSize:10, color:'#2E7D32', background:'#E8F5E9', padding:'6px 10px', borderRadius:8, marginTop:8}}>
+              ✓ MY에서 생성한 폴더 {typesForQual.length}개가 학습 탭에 연동됨! (예: {typesForQual.map(t=> t.name).join(', ')})
+            </div>
+          ) : (
+            <div style={{fontSize:10, color:'#856404', background:'#FFF3CD', padding:'6px 10px', borderRadius:8, marginTop:8}}>
+              💡 MY 페이지 → 자격증 폴더에서 "{selectedQual} - 2022년 2회 기출문제" 생성하면 여기에 자동 표시됨!
+            </div>
+          )}
+
+          {/* This matches the image: 300문제 보유 • 기사 / 기출 10년 / 예상문제 */}
+          <div style={{marginTop:12, display:'flex', gap:8}}>
+            <div style={{flex:1, background:'#F8F9FA', borderRadius:12, padding:12, border:'1px solid #EEF2F7'}}>
+              <div style={{fontSize:11, color:'#888'}}>300문제 보유 • 기사</div>
+              <div style={{display:'flex', gap:6, marginTop:8}}>
+                <span style={{fontSize:11, background:'white', border:'1px solid #FFD600', padding:'4px 8px', borderRadius:16, fontWeight:600}}>기출 10년</span>
+                <span style={{fontSize:11, background:'white', border:'1px solid #E9ECEF', padding:'4px 8px', borderRadius:16}}>예상문제</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style={{padding: '0 16px 16px 16px'}}>
-          <div style={{fontSize:13, fontWeight:800, color:'#1a1a2e', marginBottom:10, display:'flex', alignItems:'center', gap:6}}>
-            <span style={{width:3, height:16, background:'#4285F4', borderRadius:2}}></span>
-            {level} ({levelFiltered.length}개)
+        <div style={{background:'white', borderRadius:16, padding:12, border:'1px solid #EEF2F7'}}>
+          <div style={{fontSize:12, fontWeight:700, marginBottom:8}}>
+            {selectedQual} - {selectedType} 문제 목록
+            <span style={{fontSize:10, color:'#888', fontWeight:400, marginLeft:6}}>{filteredPdfs.length}개 PDF</span>
           </div>
-
-          <div style={{display:'flex', flexDirection:'column', gap:10}}>
-            {levelFiltered.length===0 ? (
-              <div style={{padding:40, textAlign:'center', background:'white', border:'1px solid #EEF2F7', borderRadius:16, color:'#888', fontSize:12}}>
-                해당 레벨에 문제가 없습니다<br/>MY → 관심 자격증을 추가하세요
+          {filteredPdfs.length===0 ? (
+            <div style={{padding:30, textAlign:'center', color:'#888', fontSize:12}}>
+              {selectedType==='전체' ? `${selectedQual}에 등록된 PDF가 없습니다` : `${selectedQual} - ${selectedType}에 등록된 PDF가 없습니다`}<br/>
+              <div style={{fontSize:11, marginTop:8, background:'#FFF9DB', padding:8, borderRadius:8, display:'inline-block'}}>
+                MY 페이지 → {selectedQual} 폴더 → "{selectedType !== '전체' ? selectedType : '2022년 2회 기출문제'}" 생성 → PDF 업로드
               </div>
-            ) : levelFiltered.map(cert=>(
-              <div key={cert.name} style={{
-                background:'white',
-                border: selectedCert===cert.name ? '2px solid #4285F4' : '1px solid #EEF2F7',
-                borderRadius:16,
-                padding:14,
-                boxShadow: selectedCert===cert.name ? '0 4px 12px rgba(66,133,244,0.15)' : '0 1px 4px rgba(0,0,0,0.04)',
-                cursor:'pointer'
-              }} onClick={()=> setSelectedCert(cert.name)}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8}}>
-                  <div>
-                    <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
-                      <span style={{fontSize:14, fontWeight:800, color:'#1a1a2e'}}>{cert.name}</span>
-                      {cert.hot && <span style={{padding:'2px 6px', background:'#FFD600', color:'#1a1a2e', borderRadius:8, fontSize:9, fontWeight:800}}>HOT</span>}
-                    </div>
-                    <div style={{fontSize:11, color:'#888'}}>{cert.count}문제 보유 • {cert.level}</div>
-                    <div style={{display:'flex', gap:6, marginTop:6}}>
-                      {getQuestionTypes(cert.name).slice(0,2).map((t:string)=>(
-                        <span key={t} style={{padding:'3px 8px', background:'#EFF6FF', color:'#3367D6', borderRadius:12, fontSize:10, fontWeight:600}}>{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{width:40, height:40, background:'#F0F7FF', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20}}>📘</div>
+            </div>
+          ) : (
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              {filteredPdfs.map((pdf:any, i:number)=> (
+                <div key={i} onClick={()=> router.push(`/flipbook/${pdf.id}`)} style={{padding:'12px', background:'#F8F9FA', borderRadius:10, border:'1px solid #EEF2F7', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <div><div style={{fontSize:12, fontWeight:600}}>📄 {pdf.title||pdf.fileName||`${selectedQual} ${selectedType}`}</div><div style={{fontSize:10, color:'#888', marginTop:2}}>{pdf.problemType||selectedType} • {pdf.pages||0}페이지</div></div>
+                  <div style={{fontSize:11, background:'#FFD600', padding:'4px 8px', borderRadius:8, fontWeight:700}}>보기</div>
                 </div>
-
-                <div style={{display:'flex', gap:8, marginTop:10}}>
-                  <button onClick={(e)=>{ e.stopPropagation(); router.push(`/learn/mock?cert=${encodeURIComponent(cert.name)}`) }} style={{flex:1, padding:10, background:'linear-gradient(135deg, #2B5CE6 0%, #1A4CD4 100%)', color:'white', border:'none', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer'}}>모의고사</button>
-                  <button onClick={(e)=>{ e.stopPropagation(); router.push(`/learn/problems?cert=${encodeURIComponent(cert.name)}`) }} style={{flex:1, padding:10, background:'#EFF6FF', color:'#3367D6', border:'1px solid #D6E4FF', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer'}}>문제풀기</button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
