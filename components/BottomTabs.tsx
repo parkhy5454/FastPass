@@ -17,7 +17,7 @@ export default function BottomTabs(){
   const tabs = [
     { href:'/', label:'홈', icon:'🏠', active: pathname==='/' },
     { href:'/learn', label:'학습', icon:'📚', active: pathname?.startsWith('/learn') },
-    { href:'/jobs', label:'취업', icon:'💼', active: pathname?.startsWith('/jobs') },
+    { href:'/jobs', label:'구인/구직', icon:'💼', active: pathname?.startsWith('/jobs') },
     { href:'/my', label:'MY', icon:'⚙️', active: pathname?.startsWith('/my') || pathname?.startsWith('/admin') },
   ]
 

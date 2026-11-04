@@ -8,6 +8,8 @@ export default function JobsPage(){
   const [filter,setFilter]=useState('전체')
   const [user,setUser]=useState<any>(null)
   const [selectedJob,setSelectedJob]=useState<any>(null)
+  const [showContact,setShowContact]=useState(false)
+  useEffect(()=>{ setShowContact(false) },[selectedJob])
 
   const router=useRouter()
 
@@ -53,7 +55,7 @@ export default function JobsPage(){
     <div style={{minHeight:'100vh', background:'#F8F9FB', paddingBottom:100}}>
       <div style={{maxWidth:480, margin:'0 auto', padding:16}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-          <div style={{fontSize:18, fontWeight:800, color:'#1a1a2e'}}>취업 게시판</div>
+          <div style={{fontSize:18, fontWeight:800, color:'#1a1a2e'}}>구인/구직 게시판</div>
           <button onClick={()=> router.push('/jobs/register')} style={{padding:'8px 14px', background:'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)', border:'none', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', color:'#1a1a2e'}}>+ 등록하기</button>
         </div>
 
@@ -111,7 +113,7 @@ export default function JobsPage(){
               <div style={{fontSize:12, color:'#333', lineHeight:'1.6', whiteSpace:'pre-wrap'}}>{selectedJob.description||'상세 설명 없음'}</div>
             </div>
 
-            {selectedJob.contact && <div style={{fontSize:12, marginBottom:12}}>📞 연락처: <span style={{fontWeight:700}}>{selectedJob.contact}</span></div>}
+            {selectedJob.contact && (showContact || (user?.id===selectedJob.userId || user?.role==='ADMIN')) && <div style={{fontSize:12, marginBottom:12}}>📞 연락처: <span style={{fontWeight:700}}>{selectedJob.contact}</span></div>}
 
             {/* Attached Files */}
             {selectedJob.files && selectedJob.files.length>0 && (
@@ -139,11 +141,16 @@ export default function JobsPage(){
             <div style={{display:'flex', gap:8, marginTop:12}}>
               {(user?.id===selectedJob.userId || user?.role==='ADMIN') ? (
                 <>
+                  <button onClick={()=> router.push(`/jobs/register?edit=${selectedJob.id}`)} style={{flex:1, padding:12, background:'white', border:'1px solid #E9ECEF', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer'}}>수정</button>
                   <button onClick={()=> handleDelete(selectedJob.id)} style={{flex:1, padding:12, background:'#FFF1F1', color:'#E5484D', border:'1px solid #FFD1D1', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer'}}>삭제</button>
                   {selectedJob.type==='구인' && !selectedJob.hireConfirmed && <button onClick={()=> handleHireConfirm(selectedJob)} style={{flex:1, padding:12, background:'linear-gradient(135deg, #34A853 0%, #2E7D32 100%)', color:'white', border:'none', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer'}}>채용 확정 (45만원)</button>}
                 </>
               ) : (
-                <a href={`tel:${selectedJob.contact}`} style={{flex:1, padding:12, background:'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)', color:'#1a1a2e', border:'none', borderRadius:10, fontWeight:800, fontSize:12, textAlign:'center', textDecoration:'none', display:'block'}}>📞 연락하기</a>
+                <>{showContact ? (
+                  <a href={`tel:${selectedJob.contact}`} style={{flex:1, padding:12, background:'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)', color:'#1a1a2e', border:'none', borderRadius:10, fontWeight:800, fontSize:12, textAlign:'center', textDecoration:'none', display:'block'}}>📞 {selectedJob.contact} 전화 걸기</a>
+                ) : (
+                  <button onClick={()=> setShowContact(true)} style={{flex:1, padding:12, background:'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)', color:'#1a1a2e', border:'none', borderRadius:10, fontWeight:800, fontSize:12, cursor:'pointer'}}>연락처 보기</button>
+                )}</>
               )}
               <button onClick={()=> setSelectedJob(null)} style={{flex:1, padding:12, background:'white', border:'1px solid #E9ECEF', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer'}}>닫기</button>
             </div>
