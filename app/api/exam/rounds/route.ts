@@ -22,11 +22,22 @@ export async function GET(req: NextRequest) {
     const settings = await prisma.examRound.findMany({ where: { category } })
     const byRound: Record<string, any> = {}
     settings.forEach((s: any) => { byRound[s.round] = s })
+    const mine = await prisma.examAttempt.findMany({
+      where: { userId: auth.session.id, category },
+      select: { round: true, submittedAt: true, deadlineAt: true },
+    })
+    const now = new Date()
+    const status: Record<string, 'done' | 'open'> = {}
+    mine.forEach((a: any) => {
+      if (a.submittedAt) status[a.round] = 'done'
+      else if (a.deadlineAt > now && status[a.round] !== 'done') status[a.round] = 'open'
+    })
     const rounds = Object.keys(counts).sort().map(r => ({
       round: r,
       questionCount: counts[r],
       durationMin: byRound[r]?.durationMin ?? 150,
       passScore: byRound[r]?.passScore ?? 60,
+      status: status[r] ?? null,
     }))
     return NextResponse.json({ rounds })
   } catch (e: any) {

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 type Q = { id: string; subject: string; number: number; content: string; choices: string[] }
-type Round = { round: string; questionCount: number; durationMin: number; passScore: number }
+type Round = { round: string; questionCount: number; durationMin: number; passScore: number; status: 'done' | 'open' | null }
 
 // 실제 시험처럼 시간을 재고, 끝나면 자동으로 제출합니다.
 export default function MockExamPage() {
@@ -120,7 +120,11 @@ export default function MockExamPage() {
               <div style={{ fontWeight: 800 }}>{r.round}</div>
               <div style={{ fontSize: 12, color: '#6B7280' }}>{r.questionCount}문항 · {r.durationMin}분 · 합격 {r.passScore}점</div>
             </div>
-            <button onClick={() => start(r)} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: '#2B5CE6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>응시</button>
+            {r.status === 'done' ? (
+              <span style={{ padding: '10px 14px', borderRadius: 10, background: '#E5E7EB', color: '#6B7280', fontWeight: 700, fontSize: 13 }}>응시 완료</span>
+            ) : (
+              <button onClick={() => start(r)} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: '#2B5CE6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>{r.status === 'open' ? '이어서 응시' : '응시'}</button>
+            )}
           </div>
         ))}
       </main>

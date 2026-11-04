@@ -29,6 +29,30 @@ export async function POST(req: NextRequest) {
     const durationMin = setting?.durationMin ?? 150
 
     const now = new Date()
+    const roundStr = String(round)
+    const mine = await prisma.examAttempt.findMany({
+      where: { userId: auth.session.id, category, round: roundStr },
+      orderBy: { startedAt: 'desc' },
+    })
+    if (mine.some((a: any) => a.submittedAt)) {
+      return NextResponse.json({ error: '이미 응시한 회차입니다. 기록은 문제풀이에서 볼 수 있습니다', code: 'ALREADY_TAKEN' }, { status: 409 })
+    }
+    const open = mine.find((a: any) => !a.submittedAt)
+    if (open) {
+      if (open.deadlineAt > now) {
+        // 진행 중인 응시가 있으면 새로 시작하지 않고 남은 시간을 그대로 이어서 보여 줍니다.
+        return NextResponse.json({
+          attemptId: open.id,
+          serverNow: now.toISOString(),
+          deadlineAt: open.deadlineAt.toISOString(),
+          durationMin,
+          questions,
+        })
+      }
+      // 시간이 지난 응시는 마감 처리합니다.
+      await prisma.examAttempt.update({ where: { id: open.id }, data: { submittedAt: open.deadlineAt, timedOut: true } })
+      return NextResponse.json({ error: '제한 시간이 지나 응시가 종료되었습니다. 이미 응시한 회차입니다', code: 'ALREADY_TAKEN' }, { status: 409 })
+    }
     const deadlineAt = new Date(now.getTime() + durationMin * 60 * 1000)
     const attempt = await prisma.examAttempt.create({
       data: { userId: auth.session.id, category, round: String(round), startedAt: now, deadlineAt },
