@@ -1,5 +1,5 @@
 
-// Fixed: No external jsonwebtoken dependency - uses native crypto
+// Full security.ts - no external deps, all exports included
 const JWT_SECRET = process.env.JWT_SECRET || 'fastpass-secret-key-2024-parkhy5454'
 
 function base64urlEncode(str:string){
@@ -14,47 +14,39 @@ function base64urlDecode(str:string){
 export function createJWT(payload:any){
   const header = {alg:'HS256', typ:'JWT'}
   const now = Math.floor(Date.now()/1000)
-  const exp = now + 30*24*60*60 // 30 days
+  const exp = now + 30*24*60*60
   const fullPayload = {...payload, iat: now, exp}
-
   const headerB64 = base64urlEncode(JSON.stringify(header))
   const payloadB64 = base64urlEncode(JSON.stringify(fullPayload))
   const data = `${headerB64}.${payloadB64}`
-
-  // Simple HMAC using Node crypto
   const crypto = require('crypto')
   const signature = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-
   return `${data}.${signature}`
 }
+
+// Alias for old name
+export const signJWT = createJWT
 
 export function verifyJWT(token:string){
   try{
     if(!token) return null
     const parts = token.split('.')
     if(parts.length !== 3) return null
-
     const [headerB64, payloadB64, signature] = parts
     const data = `${headerB64}.${payloadB64}`
-
     const crypto = require('crypto')
     const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-
     if(signature !== expectedSig){
       console.log('JWT signature mismatch')
       return null
     }
-
     const payloadJson = base64urlDecode(payloadB64)
     const payload = JSON.parse(payloadJson)
-
-    // Check exp
     const now = Math.floor(Date.now()/1000)
     if(payload.exp && payload.exp < now){
       console.log('JWT expired')
       return null
     }
-
     return payload
   }catch(e){
     console.log('JWT verify failed', e)
@@ -75,4 +67,80 @@ export function verifyPassword(password:string, hash:string){
 export function generateCSRFToken(){
   const crypto = require('crypto')
   return crypto.randomBytes(32).toString('hex')
+}
+
+// Admin check - original function
+export function isAdmin(loginIdOrPayload:any){
+  if(!loginIdOrPayload) return false
+  if(typeof loginIdOrPayload === 'string'){
+    return loginIdOrPayload.includes('parkhy5454') || loginIdOrPayload === 'admin' || loginIdOrPayload === 'demo'
+  }
+  // payload object
+  const p = loginIdOrPayload
+  return p.role === 'ADMIN' || p.loginId?.includes('parkhy5454') || p.loginId === 'admin' || p.email?.includes('parkhy5454')
+}
+
+// Input validation - original functions
+export function validateLoginId(loginId:string){
+  if(!loginId || loginId.length < 3) return {valid:false, error:'아이디는 3자 이상'}
+  if(loginId.length > 20) return {valid:false, error:'아이디는 20자 이하'}
+  if(!/^[a-zA-Z0-9_@.]+$/.test(loginId)) return {valid:false, error:'아이디 형식 오류'}
+  return {valid:true}
+}
+
+export function validatePassword(password:string){
+  if(!password || password.length < 4) return {valid:false, error:'비밀번호 4자 이상'}
+  if(password.length > 50) return {valid:false, error:'비밀번호 50자 이하'}
+  return {valid:true}
+}
+
+export function sanitizeInput(input:string){
+  if(!input) return ''
+  return input.toString().trim().slice(0,1000).replace(/<script>/gi,'').replace(/<\/script>/gi,'')
+}
+
+// PDF validation - original functions
+export function validatePDFFile(file:any){
+  if(!file) return {valid:false, error:'파일 없음'}
+  const maxSize = 50*1024*1024
+  if(file.size > maxSize) return {valid:false, error:'파일 50MB 이하'}
+  return {valid:true}
+}
+
+export function validatePDFMagicBytes(buffer:Buffer | Uint8Array){
+  try{
+    const header = Buffer.from(buffer.slice(0,4)).toString()
+    if(!header.startsWith('%PDF')) return {valid:false, error:'PDF 파일이 아닙니다'}
+    return {valid:true}
+  }catch{
+    return {valid:false, error:'PDF 검증 실패'}
+  }
+}
+
+// Rate limit simple
+const loginAttempts = new Map<string, {count:number, lastAttempt:number}>()
+export function checkRateLimit(ip:string){
+  const now = Date.now()
+  const record = loginAttempts.get(ip)
+  if(!record) return {allowed:true}
+  if(record.count >= 5 && now - record.lastAttempt < 10*60*1000){
+    return {allowed:false, error:'5회 실패, 10분 후 재시도'}
+  }
+  if(now - record.lastAttempt > 10*60*1000){
+    loginAttempts.delete(ip)
+    return {allowed:true}
+  }
+  return {allowed:true}
+}
+
+export function recordLoginAttempt(ip:string, success:boolean){
+  const now = Date.now()
+  if(success){
+    loginAttempts.delete(ip)
+    return
+  }
+  const record = loginAttempts.get(ip) || {count:0, lastAttempt:now}
+  record.count += 1
+  record.lastAttempt = now
+  loginAttempts.set(ip, record)
 }
