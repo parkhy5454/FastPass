@@ -14,6 +14,81 @@ const ALL_QUALIFICATIONS = {
 
 type UploadedFile = { url:string, fileName:string, fileSize:number, fileType:string, ext?:string, isImage?:boolean, isPdf?:boolean }
 
+function formatSalaryInput(v: string): string {
+  // Allow: 숫자, 쉼표, 만원, 원, ~, 협의, 공백, 천, 백
+  // If contains non-numeric Korean like 협의, keep as is
+  if (!v) return ''
+  const lower = v.toLowerCase()
+  // If user typed 협의, keep
+  if (v.includes('협의') || v.includes('협의가능') || lower.includes('negotiable')) return v
+
+  // Extract number part
+  // Remove everything except digits
+  const digitsOnly = v.replace(/[^0-9]/g, '')
+  if (!digitsOnly) {
+    // if no digits but has text like 4000만원~ -> keep original for now
+    // but try to handle like 4000 -> 4,000
+    return v
+  }
+
+  // If value is like 4000 or 50000000, format with comma
+  // Keep suffix like 만원, 원, ~
+  const suffixMatch = v.match(/[^0-9,]+$/)
+  let suffix = ''
+  if (suffixMatch) {
+    // suffix like 만원, 원, 만원~, ~
+    suffix = suffixMatch[0].trim()
+    // Normalize: if digitsOnly is like 4000 and suffix contains 만원, keep
+    // If suffix is just ~ keep
+  } else {
+    // Check if original had 만원 inside
+    if (v.includes('만원')) suffix = '만원'
+    else if (v.includes('원')) suffix = '원'
+  }
+
+  // Format number with thousand comma
+  const num = parseInt(digitsOnly, 10)
+  if (isNaN(num)) return v
+  const formatted = num.toLocaleString('ko-KR')
+
+  // Reconstruct
+  // If user typed 4000만원 -> digits 4000 -> 4,000만원
+  // If user typed 50000000 -> 50,000,000
+  // If suffix includes ~, add
+  let hasTilde = v.includes('~')
+  let result = formatted + (suffix ? (suffix.startsWith('~') ? suffix : (suffix.includes('만원') || suffix.includes('원') ? suffix : '')) : '')
+  if (hasTilde && !result.includes('~')) result += '~'
+  // If no suffix and number >= 10000, suggest 만원? No, keep plain
+  // If user just typed numbers, return formatted
+  if (!suffix && !hasTilde) return formatted
+
+  // If suffix was extracted as 만원 etc, already included
+  if (suffix && !result.includes(suffix)) result = formatted + suffix + (hasTilde && !suffix.includes('~') ? '~' : '')
+
+  return result
+}
+
+function formatPhoneNumber(value: string): string {
+  const numbers = value.replace(/[^0-9]/g, '')
+  if (numbers.length <= 3) return numbers
+  if (numbers.length <= 7) return `${numbers.slice(0,3)}-${numbers.slice(3)}`
+  if (numbers.length <= 10) {
+    // 010-123-4567 or 02-1234-5678
+    if (numbers.startsWith('02')) {
+      if (numbers.length <= 5) return `${numbers.slice(0,2)}-${numbers.slice(2)}`
+      if (numbers.length <= 9) return `${numbers.slice(0,2)}-${numbers.slice(2,6)}-${numbers.slice(6)}`
+      return `${numbers.slice(0,2)}-${numbers.slice(2,6)}-${numbers.slice(6,10)}`
+    }
+    return `${numbers.slice(0,3)}-${numbers.slice(3,6)}-${numbers.slice(6)}`
+  }
+  // 11 digits: 010-1234-5678
+  if (numbers.length === 11) {
+    return `${numbers.slice(0,3)}-${numbers.slice(3,7)}-${numbers.slice(7)}`
+  }
+  // more than 11, truncate
+  return `${numbers.slice(0,3)}-${numbers.slice(3,7)}-${numbers.slice(7,11)}`
+}
+
 export default function JobRegisterPage(){
   const [user,setUser]=useState<any>(null)
   const [type,setType]=useState<'구인'|'구직'>('구인')
@@ -55,6 +130,22 @@ export default function JobRegisterPage(){
 
   function removeFile(idx:number){ setFiles(files.filter((_,i)=> i!==idx)) }
 
+  function handleSalaryChange(v:string){
+    // Allow user to type freely but auto-format
+    // If user deletes all, allow empty
+    if(v==='' ) { setForm({...form, salary:''}); return }
+    // If contains 협의, don't format
+    if(v.includes('협의')) { setForm({...form, salary:v}); return }
+    // Format
+    const formatted = formatSalaryInput(v)
+    setForm({...form, salary:formatted})
+  }
+
+  function handleContactChange(v:string){
+    const formatted = formatPhoneNumber(v)
+    setForm({...form, contact:formatted})
+  }
+
   async function handleSubmit(){
     if(!form.title.trim()) return alert('제목을 입력하세요')
     if(!form.company.trim()) return alert('회사/이름을 입력하세요')
@@ -68,7 +159,7 @@ export default function JobRegisterPage(){
       })
       const data=await res.json()
       if(!res.ok) throw new Error(data.error||'등록 실패')
-      alert(`${type} 등록 완료! ${files.length>0 ? `파일 ${files.length}개 첨부` : ''}`)
+      alert(`${type} 등록 완료!`)
       router.push('/jobs')
     }catch(e:any){ alert(e.message) }finally{ setLoading(false) }
   }
@@ -86,20 +177,20 @@ export default function JobRegisterPage(){
         </div>
 
         <div style={{background:'#FFF3CD', border:'1px solid #FFE69C', borderRadius:12, padding:10, marginBottom:12, fontSize:11, color:'#856404'}}>
-          ⚠️ 테스트 모드: 결제 없이 등록 가능 / 파일 첨부 가능
+          ⚠️ 테스트 모드: 결제 없이 등록 가능 / 자동 포맷 적용
         </div>
 
         <div style={{background:'white', borderRadius:16, padding:16, border:'1px solid #EEF2F7', marginBottom:12}}>
           <div style={{fontSize:12, fontWeight:700, marginBottom:10}}>구인/구직 선택</div>
           <div style={{display:'flex', gap:8}}>
-            <button onClick={()=>setType('구인')} style={{flex:1, padding:'14px', background: isJob ? 'linear-gradient(135deg, #34A853 0%, #2E7D32 100%)' : 'white', color: isJob ? 'white' : '#888', border: isJob ? 'none' : '1.5px solid #E9ECEF', borderRadius:12, fontSize:13, fontWeight: isJob ? 800 : 600, cursor:'pointer'}}>🏢 구인 (공고파일)</button>
-            <button onClick={()=>setType('구직')} style={{flex:1, padding:'14px', background: !isJob ? 'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)' : 'white', color: !isJob ? '#1a1a2e' : '#888', border: !isJob ? 'none' : '1.5px solid #E9ECEF', borderRadius:12, fontSize:13, fontWeight: !isJob ? 800 : 600, cursor:'pointer'}}>👤 구직 (이력서)</button>
+            <button onClick={()=>setType('구인')} style={{flex:1, padding:'14px', background: isJob ? 'linear-gradient(135deg, #34A853 0%, #2E7D32 100%)' : 'white', color: isJob ? 'white' : '#888', border: isJob ? 'none' : '1.5px solid #E9ECEF', borderRadius:12, fontSize:13, fontWeight: isJob ? 800 : 600, cursor:'pointer'}}>🏢 구인</button>
+            <button onClick={()=>setType('구직')} style={{flex:1, padding:'14px', background: !isJob ? 'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)' : 'white', color: !isJob ? '#1a1a2e' : '#888', border: !isJob ? 'none' : '1.5px solid #E9ECEF', borderRadius:12, fontSize:13, fontWeight: !isJob ? 800 : 600, cursor:'pointer'}}>👤 구직</button>
           </div>
         </div>
 
         <div style={{background:'white', borderRadius:16, padding:16, border:'1px solid #EEF2F7', boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
           <div style={{fontSize:12, fontWeight:700, marginBottom:6}}>제목 *</div>
-          <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder={isJob ? '예: 전기기사 구인 - 삼성전기 (포스터 첨부 가능)' : '예: 전기기사 구직 - 경력 5년'} style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:12, boxSizing:'border-box', background:'white'}} />
+          <input value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder={isJob ? '예: 전기기사 구인 - 삼성전기' : '예: 전기기사 구직 - 경력 5년'} style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:12, boxSizing:'border-box', background:'white'}} />
 
           <div style={{fontSize:12, fontWeight:700, marginBottom:6}}>{isJob ? '회사명 *' : '이름/회사 *'}</div>
           <input value={form.company} onChange={e=>setForm({...form, company:e.target.value})} placeholder="예: 삼성전기" style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:12, boxSizing:'border-box', background:'white'}} />
@@ -136,39 +227,21 @@ export default function JobRegisterPage(){
             </div>
           </div>
 
-          {/* File Upload */}
           <div style={{marginBottom:12, background: isJob ? '#F0F7FF' : '#FFF9DB', border: isJob ? '1px dashed #8AB4F8' : '1px dashed #FFD600', borderRadius:12, padding:14}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
-              <div style={{fontSize:12, fontWeight:800, color:'#1a1a2e'}}>
-                {isJob ? '📎 공고 이미지/PDF 첨부 (선택)' : '📎 이력서 첨부 (선택) - 한글/워드/PDF/이미지'}
-              </div>
+              <div style={{fontSize:12, fontWeight:800, color:'#1a1a2e'}}>{isJob ? '📎 공고 이미지/PDF 첨부' : '📎 이력서 첨부 (hwp/doc/pdf/이미지)'}</div>
               <div style={{fontSize:10, color:'#888'}}>{files.length}개</div>
             </div>
-            <div style={{fontSize:10, color:'#666', marginBottom:10, lineHeight:'1.4'}}>
-              {isJob ? '• 채용공고 포스터, 모집요강 이미지(JPG/PNG) 또는 PDF 가능 - 최대 10MB, 여러개 가능' : '• 이력서 파일: 한글(.hwp/.hwpx), 워드(.doc/.docx), PDF, 이미지(JPG/PNG) - 최대 10MB'}
-            </div>
-
             <input ref={fileRef} type="file" multiple accept={isJob ? "image/*,application/pdf" : ".hwp,.hwpx,.doc,.docx,.pdf,image/*"} onChange={handleFileChange} style={{display:'none'}} />
-
             <button onClick={()=> fileRef.current?.click()} disabled={uploading} style={{width:'100%', padding:'12px', background:'white', border:'1.5px solid #E9ECEF', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
-              {uploading ? '⏳ 업로드 중...' : isJob ? '📁 공고 파일 선택 (이미지/PDF)' : '📁 이력서 선택 (hwp/doc/pdf/이미지)'}
+              {uploading ? '⏳ 업로드 중...' : isJob ? '📁 공고 파일 선택' : '📁 이력서 선택'}
             </button>
-
             {files.length>0 && (
               <div style={{marginTop:10, display:'flex', flexDirection:'column', gap:8}}>
                 {files.map((f, idx)=>(
                   <div key={idx} style={{display:'flex', alignItems:'center', gap:8, background:'white', border:'1px solid #E9ECEF', borderRadius:10, padding:8}}>
-                    {f.isImage ? (
-                      <img src={f.url} alt={f.fileName} style={{width:40, height:40, objectFit:'cover', borderRadius:6, border:'1px solid #EEE'}} />
-                    ) : (
-                      <div style={{width:40, height:40, background: f.isPdf ? '#FFEBEE' : f.ext==='hwp' || f.ext==='hwpx' ? '#E3F2FD' : '#FFF3E0', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800}}>
-                        {f.isPdf ? 'PDF' : (f.ext||'FILE').toUpperCase().slice(0,4)}
-                      </div>
-                    )}
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:11, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{f.fileName}</div>
-                      <div style={{fontSize:9, color:'#888'}}>{(f.fileSize/1024).toFixed(0)}KB • {f.isImage ? '이미지' : f.ext}</div>
-                    </div>
+                    {f.isImage ? <img src={f.url} alt={f.fileName} style={{width:40, height:40, objectFit:'cover', borderRadius:6, border:'1px solid #EEE'}} /> : <div style={{width:40, height:40, background: f.isPdf ? '#FFEBEE' : '#E3F2FD', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800}}>{f.isPdf ? 'PDF' : (f.ext||'FILE').toUpperCase().slice(0,4)}</div>}
+                    <div style={{flex:1, minWidth:0}}><div style={{fontSize:11, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{f.fileName}</div><div style={{fontSize:9, color:'#888'}}>{(f.fileSize/1024).toFixed(0)}KB</div></div>
                     <button onClick={()=> removeFile(idx)} style={{width:24, height:24, background:'#FFF1F1', border:'1px solid #FFD1D1', borderRadius:12, cursor:'pointer', fontSize:12}}>✕</button>
                   </div>
                 ))}
@@ -176,14 +249,20 @@ export default function JobRegisterPage(){
             )}
           </div>
 
-          <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>급여/연봉</div>
-          <input value={form.salary} onChange={e=>setForm({...form, salary:e.target.value})} placeholder="예: 4000만원~" style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:12, boxSizing:'border-box', background:'white'}} />
+          <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>급여/연봉 (숫자만 입력 → 자동 콤마)</div>
+          <div style={{position:'relative', marginBottom:12}}>
+            <input value={form.salary} onChange={e=> handleSalaryChange(e.target.value)} placeholder="예: 4000 → 4,000 / 4000만원 → 4,000만원" style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, boxSizing:'border-box', background:'white'}} />
+            <div style={{fontSize:9, color:'#888', marginTop:4}}>💡 숫자만 치면 4,000 처럼 천단위 자동 생성 / 만원, 협의 입력 가능</div>
+          </div>
 
           <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>상세 설명</div>
-          <textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} placeholder={isJob ? "자격 요건, 우대 사항, 복리후생 (이미지는 위에서 첨부)" : "경력, 보유 자격증, 자기소개 (이력서는 위에서 첨부)"} rows={4} style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:12, boxSizing:'border-box', resize:'none', background:'white'}} />
+          <textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} placeholder="자격 요건, 우대 사항" rows={4} style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:12, boxSizing:'border-box', resize:'none', background:'white'}} />
 
-          <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>연락처</div>
-          <input value={form.contact} onChange={e=>setForm({...form, contact:e.target.value})} placeholder="010-1234-5678" style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, marginBottom:16, boxSizing:'border-box', background:'white'}} />
+          <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>연락처 (숫자만 입력 → 하이픈 자동)</div>
+          <div style={{position:'relative', marginBottom:16}}>
+            <input value={form.contact} onChange={e=> handleContactChange(e.target.value)} placeholder="예: 01012345678 → 010-1234-5678 자동" style={{width:'100%', padding:'12px', border:'1px solid #E9ECEF', borderRadius:10, fontSize:12, boxSizing:'border-box', background:'white'}} type="tel" inputMode="numeric" maxLength={13} />
+            <div style={{fontSize:9, color:'#888', marginTop:4}}>💡 01012345678 입력 → 010-1234-5678 자동 변환</div>
+          </div>
 
           <button onClick={handleSubmit} disabled={loading} style={{width:'100%', padding:14, background: loading ? '#ccc' : isJob ? 'linear-gradient(135deg, #34A853 0%, #2E7D32 100%)' : 'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)', color: isJob || loading ? 'white' : '#1a1a2e', border:'none', borderRadius:12, fontWeight:800, fontSize:13, cursor:'pointer'}}>{loading ? '등록 중...' : `${type} 등록하기${files.length>0 ? ` (파일 ${files.length}개)` : ''}`}</button>
         </div>
