@@ -117,7 +117,7 @@ export default function MyPage(){
                 {filteredMembers.map((m:any)=>(
                   <div key={m.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px', background:'#F8F9FA', borderRadius:8, marginBottom:6}}>
                     <div><div style={{fontSize:12, fontWeight:600}}>{m.loginId} {m.role==='ADMIN' && <span style={{background:'linear-gradient(135deg, #FFD600 0%, #FFB800 100%)', padding:'1px 6px', borderRadius:8, fontSize:9, fontWeight:700}}>ADMIN</span>}</div><div style={{fontSize:10, color:'#888'}}>{m.name||''} {m.email ? `• ${m.email}` : ''}</div></div>
-                    <button onClick={async()=>{ if(!confirm(`${m.loginId} 비밀번호 1234로 초기화?`)) return; const res=await fetch('/api/admin/reset-password',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({userId: m.id})}); const d=await res.json(); alert(d.ok ? '초기화 완료: 1234' : d.error) }} style={{padding:'6px 10px', background:'white', color:'#E53E3E', border:'1px solid #FFE0E0', borderRadius:6, fontSize:10, cursor:'pointer', fontWeight:600}}>초기화</button>
+                    <button onClick={async()=>{ if(!confirm(`${m.loginId} 비밀번호를 임시 비밀번호로 초기화할까요?`)) return; const res=await fetch('/api/admin/reset-password',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({userId: m.id})}); const d=await res.json(); alert(d.ok ? `임시 비밀번호: ${d.tempPassword}\n(이 값은 지금만 표시됩니다. 사용자에게 전달 후 변경하도록 안내하세요)` : d.error) }} style={{padding:'6px 10px', background:'white', color:'#E53E3E', border:'1px solid #FFE0E0', borderRadius:6, fontSize:10, cursor:'pointer', fontWeight:600}}>초기화</button>
                   </div>
                 ))}
               </div>

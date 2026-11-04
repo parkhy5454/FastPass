@@ -1,6 +1,9 @@
 
 import { prisma } from '@/lib/db'
+import { requireAdmin } from '@/lib/session'
 export async function POST(req:Request){
+  const auth = requireAdmin()
+  if ('response' in auth) return auth.response
   try{
     const { title, certType, year, round, questions } = await req.json()
     const p:any = prisma
@@ -36,6 +39,8 @@ export async function POST(req:Request){
 }
 
 export async function GET(){
+  const auth = requireAdmin()
+  if ('response' in auth) return auth.response
   try{
     const p:any = prisma
     if(!p.flipbook) return Response.json({ flipbooks: [] })

@@ -1,27 +1,23 @@
-
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyJWT } from '@/lib/security'
+import { getSession } from '@/lib/session'
 import { hasAccess } from '@/lib/subscription'
-import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient() as any
+import { prisma } from '@/lib/db'
 
-export async function POST(req: NextRequest){
-  try{
-    const token = cookies().get('token')?.value
-    if(!token) return NextResponse.json({allowed:false, reason:'로그인 필요'})
-    const payload = verifyJWT(token)
-    if(!payload) return NextResponse.json({allowed:false, reason:'인증 만료'})
-    const {feature, count, requested} = await req.json()
-    let plan='FREE'
-    try{
-      const user = await prisma.user.findUnique({where:{id: payload.id}}).catch(()=>null)
-      if(user){
-        plan=user.plan||user.subscription||'FREE'
-        if(user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date()) plan='FREE'
-      }
-    }catch{}
-    const result = hasAccess(plan, feature, count||0, requested)
-    return NextResponse.json({...result, plan})
-  }catch{ return NextResponse.json({allowed:true}) }
+export async function POST(req: NextRequest) {
+  const session = getSession()
+  if (!session) return NextResponse.json({ allowed: false, reason: '로그인 필요' })
+  try {
+    const { feature, count, requested } = await req.json()
+    let plan = 'FREE'
+    const user: any = await (prisma as any).user.findUnique({ where: { id: session.id } }).catch(() => null)
+    if (user) {
+      plan = user.plan || user.subscription || 'FREE'
+      if (user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) < new Date()) plan = 'FREE'
+    }
+    const result = hasAccess(plan, feature, Number(count) || 0, requested)
+    return NextResponse.json({ ...result, plan })
+  } catch {
+    // 확인에 실패하면 허용하지 않습니다 (기존에는 허용하던 부분)
+    return NextResponse.json({ allowed: false, reason: '권한 확인 실패' }, { status: 500 })
+  }
 }

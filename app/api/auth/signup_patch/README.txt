@@ -37,5 +37,4 @@ if(referredBy){
   await prisma.user.update({where:{loginId: referredBy}, data:{points:{increment:1000}}})
 }
 
-결제 완료시:
-await fetch('/api/referral/payout', {method:'POST', body: JSON.stringify({userId: paidUserId})})
+결제 완료시: 서버(/api/payments/verify)가 결제 확인 후 추천인 포인트를 자동 지급합니다 (클라이언트 호출 불필요)

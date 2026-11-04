@@ -46,7 +46,6 @@ export default function PaymentPage(){
       const data = await res.json()
       if(!res.ok) throw new Error(data.error)
       alert(`${selectedProduct ? selectedProduct.name : selectedPlan.name} 결제 완료! ${finalPay.toLocaleString()}원 결제 (포인트 ${finalPoints}P 사용)`)
-      await fetch('/api/admin/update-plan', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({plan: plan||'MONTHLY', userId: user?.id})}).catch(()=>{})
       window.location.href = '/my'
     }catch(e:any){ alert('결제 실패: '+e.message) }
   }

@@ -1,9 +1,36 @@
-
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-import { cookies } from 'next/headers'
-const prisma = new PrismaClient() as any
-function getUserId(){ try{ const token = cookies().get('token')?.value; if(!token) return null; const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()); return payload.id }catch{ return null } }
-export async function GET(){ try{ const userId = getUserId(); if(!userId) return NextResponse.json([]); const bookmarks = await prisma.bookmark?.findMany?.({where:{userId}, orderBy:{createdAt:'desc'}}).catch(()=>[]) || []; return NextResponse.json(bookmarks) }catch{ return NextResponse.json([]) } }
-export async function POST(req: NextRequest){ try{ const userId = getUserId(); if(!userId) return NextResponse.json({error:'unauthorized'},{status:401}); const {questionId} = await req.json(); if(!prisma.bookmark) return NextResponse.json({ok:true, message:'Bookmark table not yet created - add to schema'}); const existing = await prisma.bookmark.findFirst({where:{userId, questionId}}).catch(()=>null); if(existing) return NextResponse.json(existing); const created = await prisma.bookmark.create({data:{userId, questionId}}).catch(()=>null); return NextResponse.json(created||{ok:true}) }catch(e:any){ return NextResponse.json({error:e.message},{status:500}) } }
-export async function DELETE(req: NextRequest){ try{ const userId = getUserId(); const {questionId} = await req.json(); if(prisma.bookmark) await prisma.bookmark.deleteMany({where:{userId, questionId}}).catch(()=>{}); return NextResponse.json({ok:true}) }catch(e:any){ return NextResponse.json({error:e.message},{status:500}) } }
+import { getSession } from '@/lib/session'
+import { prisma } from '@/lib/db'
+
+const p: any = prisma
+
+export async function GET() {
+  const session = getSession()
+  if (!session) return NextResponse.json([])
+  const bookmarks = await p.bookmark?.findMany?.({ where: { userId: session.id }, orderBy: { createdAt: 'desc' } }).catch(() => []) || []
+  return NextResponse.json(bookmarks)
+}
+
+export async function POST(req: NextRequest) {
+  const session = getSession()
+  if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
+  const { questionId } = await req.json().catch(() => ({}))
+  if (!questionId) return NextResponse.json({ error: 'questionId 필요' }, { status: 400 })
+  try {
+    const existing = await p.bookmark.findFirst({ where: { userId: session.id, questionId } }).catch(() => null)
+    if (existing) return NextResponse.json(existing)
+    const created = await p.bookmark.create({ data: { userId: session.id, questionId } })
+    return NextResponse.json(created)
+  } catch {
+    return NextResponse.json({ error: '북마크 저장 실패' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = getSession()
+  if (!session) return NextResponse.json({ error: '로그인 필요' }, { status: 401 })
+  const { questionId } = await req.json().catch(() => ({}))
+  if (!questionId) return NextResponse.json({ error: 'questionId 필요' }, { status: 400 })
+  await p.bookmark?.deleteMany?.({ where: { userId: session.id, questionId } }).catch(() => {})
+  return NextResponse.json({ ok: true })
+}

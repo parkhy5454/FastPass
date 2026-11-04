@@ -1,6 +1,9 @@
 
 import { prisma } from '@/lib/db'
+import { requireAdmin } from '@/lib/session'
 export async function POST(req: Request){
+  const auth = requireAdmin()
+  if ('response' in auth) return auth.response
   try{
     const { loginId, interests, name, phone } = await req.json()
     const p:any = prisma

@@ -42,7 +42,6 @@ export default function LoginPage(){
         localStorage.setItem('user', JSON.stringify(data.user))
       }
 
-      alert('로그인 성공!')
       router.push('/')
     }catch(e:any){
       console.error('Login failed', e)
@@ -77,9 +76,6 @@ export default function LoginPage(){
 
         <button onClick={()=> router.push('/')} style={{width:'100%', marginTop:12, background:'none', border:'none', color:'#888', fontSize:12, cursor:'pointer'}}>홈으로 돌아가기</button>
 
-        <div style={{marginTop:16, padding:10, background:'#F8F9FA', borderRadius:8, fontSize:11, color:'#666'}}>
-          💡 테스트 계정: demo / 1234<br/>관리자: parkhy5454@gmail.com / admin
-        </div>
       </div>
     </div>
   )

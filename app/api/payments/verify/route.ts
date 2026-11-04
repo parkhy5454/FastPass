@@ -1,39 +1,63 @@
-
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyJWT } from '@/lib/security'
+import { requireUser } from '@/lib/session'
+import { PLANS, PRODUCTS } from '@/lib/subscription'
+import { mockPaymentsEnabled, PAYMENT_DISABLED_MESSAGE } from '@/lib/payment-gate'
+import { rewardReferrerOnce } from '@/lib/referral'
+import { prisma } from '@/lib/db'
 
-const VALID_PRICES = [9900, 59900, 149000, 4900, 19900, 2900, 99000, 19900, 4950, 2995]
-const recentPayments = new Set<string>()
+// 금액은 클라이언트 값을 믿지 않고 서버 가격표로 계산합니다.
+// productId 에는 구독 플랜 id(MONTHLY 등) 또는 상품 id(AI_REPORT 등)가 옵니다.
+function lookup(productId?: string): { price: number; plan?: string } | null {
+  if (!productId) return null
+  if ((PRODUCTS as any)[productId]) return { price: (PRODUCTS as any)[productId].price }
+  if ((PLANS as any)[productId]) return { price: (PLANS as any)[productId].price, plan: productId }
+  return null
+}
 
-export async function POST(req: NextRequest){
-  try{
-    const token = cookies().get('token')?.value
-    if(!token) return NextResponse.json({error:'로그인 필요'},{status:401})
-    const payload = verifyJWT(token)
-    if(!payload) return NextResponse.json({error:'인증 만료'},{status:401})
-    const {amount, productId, idempotencyKey, pointsUsed, totalPrice} = await req.json()
+export async function POST(req: NextRequest) {
+  // PG 검증 연동 전에는 결제를 처리하지 않습니다 (ALLOW_MOCK_PAYMENTS=true 인 테스트 환경만 예외)
+  if (!mockPaymentsEnabled()) {
+    return NextResponse.json({ error: PAYMENT_DISABLED_MESSAGE }, { status: 503 })
+  }
+  const auth = requireUser()
+  if ('response' in auth) return auth.response
+  const userId: string = auth.session.id
 
-    // 30% 포인트 검증
-    if(pointsUsed && totalPrice){
-      const maxPoints = Math.floor(totalPrice * 0.3)
-      if(pointsUsed > maxPoints){
-        return NextResponse.json({error:`포인트는 최대 30%(${maxPoints}P)만 사용 가능`},{status:400})
-      }
+  try {
+    const { amount, productId, idempotencyKey } = await req.json().catch(() => ({}))
+    const item = lookup(productId)
+    if (!item) return NextResponse.json({ error: '알 수 없는 상품' }, { status: 400 })
+    const price = item.price
+    const plan = item.plan
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8) {
+      return NextResponse.json({ error: 'idempotencyKey 필요' }, { status: 400 })
     }
 
-    if(recentPayments.has(idempotencyKey)){
-      return NextResponse.json({error:'이미 처리된 결제입니다'},{status:409})
+    const p: any = prisma
+    const dup = await p.purchase.findFirst({ where: { pgTid: idempotencyKey } })
+    if (dup) return NextResponse.json({ error: '이미 처리된 결제입니다' }, { status: 409 })
+
+    // 클라이언트가 보낸 금액이 있으면 서버 가격과 같아야 합니다 (포인트 차감 후 금액은 별도 확인 대상)
+    if (amount !== undefined && Number(amount) > price) {
+      return NextResponse.json({ error: '결제 금액이 상품 가격보다 큽니다' }, { status: 400 })
     }
 
-    recentPayments.add(idempotencyKey)
-    setTimeout(()=> recentPayments.delete(idempotencyKey), 60*60*1000)
+    await p.purchase.create({
+      data: { userId, amount: price, pgTid: idempotencyKey, verified: true, flipbookId: productId || null },
+    })
 
-    // Mock - 실제로는 Toss/KakaoPay 검증
-    console.log(`[PAYMENT] ${payload.id} paid ${amount} for ${productId}`)
+    if (plan && plan !== 'FREE') {
+      const expiresAt = new Date()
+      if (plan === 'LIFETIME') expiresAt.setFullYear(expiresAt.getFullYear() + 100)
+      else if (plan === 'YEARLY') expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+      else expiresAt.setMonth(expiresAt.getMonth() + 1)
+      await p.user.update({ where: { id: userId }, data: { plan, subscription: plan, subscriptionExpiresAt: expiresAt } })
+    }
 
-    return NextResponse.json({ok:true, verified:true, amount, productId})
-  }catch(e:any){
-    return NextResponse.json({error:e.message},{status:500})
+    await rewardReferrerOnce(userId)
+    return NextResponse.json({ ok: true, verified: true, amount: price, productId: productId || null, plan: plan || null })
+  } catch (e: any) {
+    console.error('payment verify error', e?.message)
+    return NextResponse.json({ error: '결제 처리 실패' }, { status: 500 })
   }
 }

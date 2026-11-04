@@ -1,16 +1,14 @@
-
+import { NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/session'
 import { prisma } from '@/lib/db'
-export async function GET(){
-  const p:any = prisma
-  try{
-    const purchases = await p.purchase.findMany({ orderBy:{ createdAt:'desc' }, take:200 })
-    return Response.json(purchases)
-  }catch(e:any){
-    try{
-      const purchases = await p.$queryRaw`SELECT * FROM "Purchase" ORDER BY "createdAt" DESC LIMIT 200`
-      return Response.json(purchases)
-    }catch{
-      return Response.json([])
-    }
+
+export async function GET() {
+  const auth = requireAdmin()
+  if ('response' in auth) return auth.response
+  try {
+    const purchases = await (prisma as any).purchase.findMany({ orderBy: { createdAt: 'desc' }, take: 200 })
+    return NextResponse.json(purchases)
+  } catch {
+    return NextResponse.json([], { status: 500 })
   }
 }

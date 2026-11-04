@@ -1,18 +1,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyJWT, isAdmin, validatePDFFile, validatePDFMagicBytes, sanitizeInput } from '@/lib/security'
-import { prisma } from '@/lib/prisma'
+import { validatePDFFile, validatePDFMagicBytes, sanitizeInput } from '@/lib/security'
+import { requireAdmin } from '@/lib/session'
+import { prisma } from '@/lib/db'
 
 export async function POST(req: NextRequest){
   try{
-    const token = cookies().get('token')?.value
-    if(!token) return NextResponse.json({error:'인증 필요'},{status:401})
-
-    const payload = verifyJWT(token)
-    if(!payload || !isAdmin(payload.loginId, payload.role)){
-      return NextResponse.json({error:'관리자 권한 필요'},{status:403})
-    }
+    const auth = requireAdmin()
+    if ('response' in auth) return auth.response
 
     const formData = await req.formData()
     const file = formData.get('file') as File
@@ -63,7 +59,7 @@ export async function POST(req: NextRequest){
           url: fileUrl,
           fileName: `${Date.now()}.pdf`,
           fileSize: file.size,
-          uploadedBy: payload.id,
+          uploadedBy: auth.session.id,
         } as any
       })
     }catch{

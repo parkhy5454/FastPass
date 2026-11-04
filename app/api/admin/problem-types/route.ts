@@ -1,10 +1,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyJWT, isAdmin } from '@/lib/security'
-import { PrismaClient } from '@prisma/client'
+import { verifyJWT } from '@/lib/security'
+import { requireAdmin } from '@/lib/session'
+import { prisma as db } from '@/lib/db'
 
-const prisma = new PrismaClient() as any
+const prisma = db as any
 
 // In-memory store for problem types (until DB table exists)
 let problemTypesStore: any[] = []
@@ -32,12 +33,8 @@ export async function GET(){
 
 export async function POST(req: NextRequest){
   try{
-    const token = cookies().get('token')?.value
-    if(!token) return NextResponse.json({error:'인증 필요'},{status:401})
-    const payload = verifyJWT(token)
-    if(!payload || !isAdmin(payload.loginId, payload.role)){
-      return NextResponse.json({error:'관리자 권한 필요'},{status:403})
-    }
+    const auth = requireAdmin()
+    if ('response' in auth) return auth.response
 
     const {name, category} = await req.json()
     if(!name || !name.trim()) return NextResponse.json({error:'이름 필요'},{status:400})
@@ -68,12 +65,8 @@ export async function POST(req: NextRequest){
 
 export async function DELETE(req: NextRequest){
   try{
-    const token = cookies().get('token')?.value
-    if(!token) return NextResponse.json({error:'인증 필요'},{status:401})
-    const payload = verifyJWT(token)
-    if(!payload || !isAdmin(payload.loginId, payload.role)){
-      return NextResponse.json({error:'관리자 권한 필요'},{status:403})
-    }
+    const auth = requireAdmin()
+    if ('response' in auth) return auth.response
 
     const id = req.nextUrl.searchParams.get('id')
     if(!id) return NextResponse.json({error:'ID 필요'},{status:400})
