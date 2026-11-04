@@ -101,7 +101,7 @@ export default function MockExamPage() {
 
   if (!attemptId) {
     return (
-      <main style={{ padding: 20, background: '#F8F9FB', minHeight: '100vh' }}>
+      <main style={{ padding: 20, background: '#F8F9FB', minHeight: '100vh', paddingBottom: 100 }}>
         <a href="/learn" style={{ fontSize: 13 }}>← 학습으로</a>
         <h1 style={{ fontSize: 18, fontWeight: 800, margin: '12px 0' }}>{cert} 모의고사</h1>
         {error && <div style={{ color: '#B91C1C', marginBottom: 12 }}>{error}</div>}
@@ -149,7 +149,7 @@ export default function MockExamPage() {
         ))}
       </div>
       <button onClick={() => { if (confirm(`${questions.length - answeredCount}문항이 비어 있습니다. 제출할까요?`)) submit(false) }}
-        style={{ position: 'fixed', bottom: 16, left: 16, right: 16, padding: 14, borderRadius: 12, border: 'none', background: '#15803D', color: 'white', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
+        style={{ position: 'fixed', bottom: 'calc(84px + env(safe-area-inset-bottom))', left: 16, right: 16, maxWidth: 448, margin: '0 auto', zIndex: 40, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: 14, borderRadius: 12, border: 'none', background: '#15803D', color: 'white', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
         답안 제출
       </button>
     </main>
