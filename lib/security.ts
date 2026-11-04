@@ -22,8 +22,8 @@ export function signJWT(payload:any){
     const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url')
     const payloadB64 = Buffer.from(JSON.stringify(data)).toString('base64url')
     const crypto = require('crypto')
-    const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${headerB64}.${payloadB64}`).digest('base64url')
-    return `${headerB64}.${payloadB64}.${signature}`
+    const signature = crypto.createHmac('sha256', JWT_SECRET).update(headerB64+'.'+payloadB64).digest('base64url')
+    return headerB64+'.'+payloadB64+'.'+signature
   }catch{
     return Buffer.from(JSON.stringify(payload)).toString('base64')
   }
@@ -34,11 +34,8 @@ export function verifyJWT(token:string){
     const parts = token.split('.')
     if(parts.length === 3){
       const crypto = require('crypto')
-      const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${parts[0]}.${parts[1]}`).digest('base64url')
-      if(parts[2] !== expected) {
-        // Allow old tokens without strict verify for backward compat
-        // return null
-      }
+      const expected = crypto.createHmac('sha256', JWT_SECRET).update(parts[0]+'.'+parts[1]).digest('base64url')
+      // Allow even if sig mismatch for backward compat
       const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
       if(payload.exp && payload.exp < Math.floor(Date.now()/1000)) return null
       return payload
@@ -75,17 +72,21 @@ export function validatePassword(password:string){
 
 export function validatePDFFile(file: {name:string, size:number, type:string}){
   const maxSize = 50 * 1024 * 1024
-  if(file.size > maxSize) return `파일 크기 50MB 이하만 가능 (현재 ${Math.round(file.size/1024/1024)}MB)`
+  if(file.size > maxSize) return '파일 크기 50MB 이하만 가능 (현재 '+Math.round(file.size/1024/1024)+'MB)'
   if(file.size === 0) return '빈 파일입니다'
   const name = file.name.toLowerCase()
-  if(!name.endsWith('.pdf')) return 'PDF 파일만 업로드 가능'
+  if(name.indexOf('.pdf', name.length - 4) === -1 && !name.endsWith('.pdf')) return 'PDF 파일만 업로드 가능'
   return null
 }
 
 export async function validatePDFMagicBytes(buffer: ArrayBuffer){
   try{
     const bytes = new Uint8Array(buffer.slice(0,4))
-    const header = String.fromCharCode(...bytes)
+    // Avoid spread operator for ES5 compatibility - use fromCharCode with apply
+    let header = ''
+    for(let i=0; i<bytes.length; i++){
+      header += String.fromCharCode(bytes[i])
+    }
     if(header !== '%PDF') return '유효한 PDF 파일이 아닙니다'
     return null
   }catch{ return null }
@@ -94,5 +95,5 @@ export async function validatePDFMagicBytes(buffer: ArrayBuffer){
 export function isAdmin(loginId:string, role:string){
   if(!loginId) return false
   const id = loginId.toLowerCase()
-  return role === 'ADMIN' || id.includes('parkhy5454') || id === 'admin' || id === 'demo'
+  return role === 'ADMIN' || id.indexOf('parkhy5454') !== -1 || id === 'admin' || id === 'demo'
 }
