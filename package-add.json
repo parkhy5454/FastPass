@@ -1,6 +1,0 @@
-
-{
-  "추가해야 할 패키지 (선택)": "npm install @vercel/blob jsonwebtoken --save",
-  "설명": "이 파일들은 없어도 동작하도록 수정됐습니다! 설치하면 더 안전합니다",
-  "현재 수정본": "@vercel/blob 없이도 빌드 성공하도록 동적 import로 변경, jsonwebtoken 없이도 자체 JWT 검증으로 변경"
-}
