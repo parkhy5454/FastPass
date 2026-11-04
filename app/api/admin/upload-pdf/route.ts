@@ -1,17 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { validatePDFFile, validatePDFMagicBytes, sanitizeInput } from '@/lib/security'
 import { requireAdmin } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
-// PDF를 Vercel Blob에 저장하고, 플립북 행에 주소를 기록합니다.
+// PDF를 Cloudflare R2에 저장하고, 플립북 행에 공개 주소를 기록합니다.
+function getR2Client() {
+  const accountId = process.env.R2_ACCOUNT_ID
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
+  const bucket = process.env.R2_BUCKET
+  const publicUrl = process.env.R2_PUBLIC_URL
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) return null
+  const client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  })
+  return { client, bucket, publicUrl: publicUrl.replace(/\/$/, '') }
+}
+
 export async function POST(req: NextRequest) {
   const auth = requireAdmin()
   if ('response' in auth) return auth.response
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return NextResponse.json({ error: '파일 저장소(Vercel Blob)가 연결되어 있지 않습니다' }, { status: 500 })
+  const r2 = getR2Client()
+  if (!r2) {
+    return NextResponse.json({ error: '파일 저장소(R2)가 설정되어 있지 않습니다' }, { status: 500 })
   }
 
   try {
@@ -34,14 +50,21 @@ export async function POST(req: NextRequest) {
     }
 
     const key = `flipbooks/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.pdf`
-    const blob = await put(key, Buffer.from(buffer), { access: 'public', contentType: 'application/pdf' })
+    await r2.client.send(
+      new PutObjectCommand({
+        Bucket: r2.bucket,
+        Key: key,
+        Body: Buffer.from(buffer),
+        ContentType: 'application/pdf',
+      })
+    )
 
     const flipbook = await (prisma as any).flipbook.create({
       data: {
         title,
         category,
         type,
-        pdfUrl: blob.url,
+        pdfUrl: `${r2.publicUrl}/${key}`,
         fileName: file.name.slice(0, 200),
         fileSize: file.size,
         totalPages: 0,
