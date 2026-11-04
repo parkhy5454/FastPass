@@ -137,7 +137,7 @@ export default function JobsPage(){
             )}
 
             <div style={{display:'flex', gap:8, marginTop:12}}>
-              {(user?.id===selectedJob.userId || user?.role==='ADMIN' || user?.loginId?.includes('parkhy5454')) ? (
+              {(user?.id===selectedJob.userId || user?.role==='ADMIN') ? (
                 <>
                   <button onClick={()=> handleDelete(selectedJob.id)} style={{flex:1, padding:12, background:'#FFF1F1', color:'#E5484D', border:'1px solid #FFD1D1', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer'}}>삭제</button>
                   {selectedJob.type==='구인' && !selectedJob.hireConfirmed && <button onClick={()=> handleHireConfirm(selectedJob)} style={{flex:1, padding:12, background:'linear-gradient(135deg, #34A853 0%, #2E7D32 100%)', color:'white', border:'none', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer'}}>채용 확정 (45만원)</button>}
