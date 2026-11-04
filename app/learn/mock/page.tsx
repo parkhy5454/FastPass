@@ -16,6 +16,14 @@ export default function MockExamPage() {
   const [now, setNow] = useState(Date.now())
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [cur, setCur] = useState(0)
+  const [autoNext, setAutoNext] = useState(true)
+  useEffect(() => {
+    try { const v = localStorage.getItem('mock-auto-next'); if (v !== null) setAutoNext(v === '1') } catch {}
+  }, [])
+  const toggleAutoNext = (on: boolean) => {
+    setAutoNext(on)
+    try { localStorage.setItem('mock-auto-next', on ? '1' : '0') } catch {}
+  }
   const [result, setResult] = useState<any>(null)
   const submittingRef = useRef(false)
 
@@ -127,12 +135,22 @@ export default function MockExamPage() {
         <span>{answeredCount}/{questions.length} 응답</span>
       </div>
       {error && <div style={{ color: '#B91C1C', margin: '10px 0', fontSize: 13 }}>{error}</div>}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#374151', marginTop: 10 }}>
+        <input type="checkbox" checked={autoNext} onChange={e => toggleAutoNext(e.target.checked)} />
+        답을 고르면 자동으로 다음 문제
+      </label>
       {q && (
         <div style={{ background: 'white', borderRadius: 14, padding: 16, marginTop: 12, border: '1px solid #EEF2F7' }}>
           <div style={{ fontSize: 12, color: '#6B7280' }}>{q.subject} · {cur + 1}/{questions.length}번</div>
           <div style={{ fontSize: 15, fontWeight: 700, margin: '10px 0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.content}</div>
           {q.choices.map((c, i) => (
-            <button key={i} onClick={() => setAnswers({ ...answers, [q.id]: i + 1 })}
+            <button key={i} onClick={() => {
+              setAnswers({ ...answers, [q.id]: i + 1 })
+              if (autoNext && cur < questions.length - 1) {
+                const from = cur
+                setTimeout(() => setCur(c => (c === from ? from + 1 : c)), 300)
+              }
+            }}
               style={{ display: 'block', width: '100%', textAlign: 'left', padding: 12, marginBottom: 8, borderRadius: 10, border: answers[q.id] === i + 1 ? '2px solid #2B5CE6' : '1px solid #E5E7EB', background: answers[q.id] === i + 1 ? '#EFF6FF' : 'white', fontSize: 14, cursor: 'pointer' }}>
               {i + 1}. {c}
             </button>
