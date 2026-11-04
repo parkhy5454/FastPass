@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import ChangePassword from '@/components/ChangePassword'
 
 const QUALIFICATIONS = ['전기기사','전기산업기사','전기공사기사','전기공사산업기사','토목기사','토목산업기사','건축기사','건축산업기사','건축전기설비기술사','발송배전기술사','건축전기설비기사','정보통신기사','소방설비기사','기계기사']
 
@@ -150,6 +151,7 @@ export default function MyPage(){
           </div>
         )}
 
+        <ChangePassword />
         <button onClick={async()=>{ await fetch('/api/auth/logout',{method:'POST'}); window.location.href='/login' }} style={{width:'100%', padding:14, background:'white', color:'#C53030', border:'1px solid #FFE0E0', borderRadius:12, fontWeight:700, fontSize:13, cursor:'pointer', marginBottom:80}}>로그아웃 - {user.loginId}</button>
       </div>
     </div>
