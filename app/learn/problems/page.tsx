@@ -57,6 +57,12 @@ export default function ProblemsPage() {
                   )
                 })}
                 {q.explanation && <div style={{ fontSize: 13, color: '#374151', marginTop: 8, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}><b>해설</b> {q.explanation}</div>}
+                <div style={{ marginTop: 10, textAlign: 'right' }}>
+                  <a href={`/inquiry?category=${encodeURIComponent('오답')}&ref=${encodeURIComponent(q.id)}&info=${encodeURIComponent(`${detail.attempt.category} ${detail.attempt.round} ${q.number}번`)}`}
+                    style={{ fontSize: 12, color: '#B91C1C', fontWeight: 700, textDecoration: 'none', border: '1px solid #FECACA', borderRadius: 8, padding: '6px 10px', background: '#FFF5F5' }}>
+                    이 문제 오류 신고
+                  </a>
+                </div>
               </div>
             ))}
           </>
