@@ -27,6 +27,7 @@ export default function InquiryPage() {
       const c = sp.get('category'); if (c && CATEGORIES.includes(c)) { setCategory(c); setTab('write') }
       const r = sp.get('ref'); if (r) setRefId(r)
       const i = sp.get('info'); if (i) setRefInfo(i)
+      if (sp.get('tab') === 'mine') setTab('mine')
     } catch {}
   }, [])
 
