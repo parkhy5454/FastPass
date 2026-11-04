@@ -42,7 +42,6 @@ export default function LoginPage(){
         localStorage.setItem('user', JSON.stringify(data.user))
       }
 
-      alert('로그인 성공!')
       router.push('/')
     }catch(e:any){
       console.error('Login failed', e)
