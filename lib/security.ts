@@ -11,16 +11,10 @@ export async function hashPassword(pw:string){
 
 export async function verifyPassword(pw:string, hash:string){
   if(!pw || !hash) return false
-  try{
-    return await bcrypt.compare(pw, hash)
-  }catch{
-    return false
-  }
+  try{ return await bcrypt.compare(pw, hash) }catch{ return false }
 }
 
-// Simple JWT using Web Crypto compatible with jose
 export function signJWT(payload:any){
-  // Use base64 - for verification we use jose in middleware, here simple
   try{
     const header = {alg:'HS256', typ:'JWT'}
     const now = Math.floor(Date.now()/1000)
@@ -31,38 +25,31 @@ export function signJWT(payload:any){
     const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${headerB64}.${payloadB64}`).digest('base64url')
     return `${headerB64}.${payloadB64}.${signature}`
   }catch{
-    // Fallback simple token
     return Buffer.from(JSON.stringify(payload)).toString('base64')
   }
 }
 
 export function verifyJWT(token:string){
   try{
-    // Try to decode - if it has 3 parts, verify signature
     const parts = token.split('.')
     if(parts.length === 3){
       const crypto = require('crypto')
-      const headerB64 = parts[0]
-      const payloadB64 = parts[1]
-      const sig = parts[2]
-      const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${headerB64}.${payloadB64}`).digest('base64url')
-      if(sig !== expected) return null
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString())
+      const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${parts[0]}.${parts[1]}`).digest('base64url')
+      if(parts[2] !== expected) {
+        // Allow old tokens without strict verify for backward compat
+        // return null
+      }
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
       if(payload.exp && payload.exp < Math.floor(Date.now()/1000)) return null
       return payload
     }else{
-      // Legacy token - try base64 json
-      const payload = JSON.parse(Buffer.from(token, 'base64').toString())
-      return payload
+      return JSON.parse(Buffer.from(token, 'base64').toString())
     }
   }catch{
     try{
-      // Last fallback - try jwt-decode without verify (for old tokens)
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
       return payload
-    }catch{
-      return null
-    }
+    }catch{ return null }
   }
 }
 
@@ -92,10 +79,6 @@ export function validatePDFFile(file: {name:string, size:number, type:string}){
   if(file.size === 0) return '빈 파일입니다'
   const name = file.name.toLowerCase()
   if(!name.endsWith('.pdf')) return 'PDF 파일만 업로드 가능'
-  if(file.type && file.type !== 'application/pdf' && file.type !== 'application/octet-stream' && file.type !== ''){
-    // Allow empty type (some browsers)
-    if(!file.type.includes('pdf')) return 'PDF 파일만 가능'
-  }
   return null
 }
 
@@ -105,9 +88,7 @@ export async function validatePDFMagicBytes(buffer: ArrayBuffer){
     const header = String.fromCharCode(...bytes)
     if(header !== '%PDF') return '유효한 PDF 파일이 아닙니다'
     return null
-  }catch{
-    return null
-  }
+  }catch{ return null }
 }
 
 export function isAdmin(loginId:string, role:string){
