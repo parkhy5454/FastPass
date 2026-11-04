@@ -66,6 +66,15 @@ export default function MockExamPage() {
     if (attemptId && !result && deadline && remainMs <= 0) submit(true)
   }, [remainMs, attemptId, result, deadline])
 
+  // 고른 답을 서버에 임시 저장 (실패해도 화면 진행은 막지 않음; 제출 때 다시 전체를 보냅니다)
+  function saveAnswers(next: Record<string, number>) {
+    if (!attemptId) return
+    fetch('/api/exam/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ attemptId, answers: next }),
+    }).catch(() => {})
+  }
+
   async function start(r: Round) {
     setError('')
     const res = await fetch('/api/exam/start', {
@@ -80,7 +89,7 @@ export default function MockExamPage() {
     setDeadline(Date.parse(d.deadlineAt))
     setAttemptId(d.attemptId)
     setQuestions(d.questions)
-    setAnswers({})
+    setAnswers(d.answers || {})
     setCur(0)
     submittingRef.current = false
   }
@@ -149,7 +158,9 @@ export default function MockExamPage() {
           <div style={{ fontSize: 15, fontWeight: 700, margin: '10px 0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.content}</div>
           {q.choices.map((c, i) => (
             <button key={i} onClick={() => {
-              setAnswers({ ...answers, [q.id]: i + 1 })
+              const next = { ...answers, [q.id]: i + 1 }
+              setAnswers(next)
+              saveAnswers(next)
               if (autoNext && cur < questions.length - 1) {
                 const from = cur
                 setTimeout(() => setCur(c => (c === from ? from + 1 : c)), 300)

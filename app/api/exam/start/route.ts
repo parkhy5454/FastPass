@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
           deadlineAt: open.deadlineAt.toISOString(),
           durationMin,
           questions,
+          answers: open.answers || {},
         })
       }
       // 시간이 지난 응시는 마감 처리합니다.
