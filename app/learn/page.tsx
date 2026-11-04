@@ -2,149 +2,148 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-const FAMILIES: Record<string, string[]> = {
-  '전기': ['전기기사','전기공사기사','전기공사산업기사','전기산업기사','전기기능사','전기공사기능사','전기기능장','건축전기설비기술사','발송배전기술사','전기응용기술사','전기안전기술사','전기철도기술사','전기철도기사','전기철도산업기사','철도신호기사','전기철도기능사'],
-  '토목': ['토목기사','토목산업기사','토목시공기술사','토질및기초기술사','도로및공항기술사','상하수도기술사','항만및해안기술사','수자원개발기술사','지적기술사','측량및지형공간정보기사','측량및지형공간정보산업기사','측량및지형공간정보기능사','지적기사','지적산업기사','지적기능사','콘크리트기사','콘크리트산업기사','콘크리트기능사','건설재료시험기사','건설재료시험산업기사','건설재료시험기능사','철도토목기사','철도토목산업기사','토목제도기능사'],
-  '정보통신': ['정보통신기사','정보통신산업기사','정보처리기사','정보처리산업기사','정보처리기능사','전자기사','전자산업기사','전자계산기기사','전자계산기제어산업기사','무선설비기사','방송통신기사','정보통신기술사','전자응용기술사','통신설비기능장'],
-  '기계': ['기계기사','기계설계기사','공조냉동기계기사','에너지관리기사','가스기사','용접기사','기계가공기능장','기계정비기능사'],
-  '건축': ['건축기사','건축산업기사','건축설비기사','건축시공기술사','건축구조기술사'],
-  '소방': ['소방설비기사(전기)','소방설비기사(기계)','소방설비산업기사(전기)','소방설비산업기사(기계)','소방시설관리사','소방안전관리자'],
-}
+const DEFAULT_TYPES = [
+  {name:'기출 10년', category:'전기기사'},
+  {name:'예상문제', category:'전기기사'},
+]
 
-const CERT_DATA: Record<string, {problems: number, level: string}> = {
-  '전기기사': {problems:300, level:'기사'},
-  '전기공사기사': {problems:200, level:'기사'},
-  '전기철도기사': {problems:200, level:'기사'},
-  '철도신호기사': {problems:200, level:'기사'},
-  '소방설비기사(전기)': {problems:150, level:'기사'},
-}
+const QUALIFICATIONS = ['전기기사', '전기산업기사', '전기공사기사', '토목기사', '건축기사', '정보통신기사']
 
 export default function LearnPage(){
-  const [user, setUser] = useState<any>(null)
+  const [selectedQual, setSelectedQual] = useState('전기기사')
+  const [selectedType, setSelectedType] = useState('기출 10년')
+  const [problemTypes, setProblemTypes] = useState<any[]>(DEFAULT_TYPES)
   const [flipbooks, setFlipbooks] = useState<any[]>([])
-  const [problemTypes, setProblemTypes] = useState<any[]>([])
-  const [selectedLevel, setSelectedLevel] = useState('기사')
-  const [selectedCert, setSelectedCert] = useState<string | null>('전기기사')
-  const [showOnlyMyInterest, setShowOnlyMyInterest] = useState(true)
 
   useEffect(()=>{
-    fetch('/api/auth/me').then(r=>r.json()).then(d=> setUser(d.user)).catch(()=>{})
-    fetch('/api/admin/flipbooks').then(r=>r.json()).then(d=> setFlipbooks(Array.isArray(d)? d : [])).catch(()=>{})
-    fetch('/api/admin/problem-types').then(r=>r.json()).then(d=> setProblemTypes(Array.isArray(d) && d.length>0 ? d : [{id:'1', name:'기출문제'}, {id:'2', name:'예상문제'}])).catch(()=>{})
+    loadTypes()
+    // Listen for updates from MY page
+    window.addEventListener('problemTypesUpdated', loadTypes)
+    window.addEventListener('storage', loadTypes)
+    return ()=>{
+      window.removeEventListener('problemTypesUpdated', loadTypes)
+      window.removeEventListener('storage', loadTypes)
+    }
   },[])
 
-  const myInterests: string[] = user?.interests || []
+  useEffect(()=>{
+    loadTypes()
+  }, [selectedQual])
 
-  function getFamily(name:string): string {
-    for(const [fam, list] of Object.entries(FAMILIES)){
-      if((list as string[]).includes(name) || name.includes(fam)) return fam
+  function loadTypes(){
+    try{
+      const saved = JSON.parse(localStorage.getItem('problemTypes')||'[]')
+      const filtered = saved.filter((t:any)=> t.category===selectedQual)
+      // Merge defaults + custom
+      const defaults = DEFAULT_TYPES.filter(d=> d.category===selectedQual || d.category==='전기기사')
+      const all = [...defaults]
+      filtered.forEach((t:any)=>{
+        if(!all.find(a=> a.name===t.name)){
+          all.push(t)
+        }
+      })
+      // Also include types that match this qual from any category if qual matches
+      saved.forEach((t:any)=>{
+        if(t.category===selectedQual && !all.find(a=> a.name===t.name)){
+          all.push(t)
+        }
+      })
+      setProblemTypes(all.length>0 ? all : DEFAULT_TYPES)
+    }catch{
+      setProblemTypes(DEFAULT_TYPES)
     }
-    return '기타'
-  }
-  function getLevel(name:string): string {
-    if(CERT_DATA[name]) return CERT_DATA[name].level
-    if(name.includes('기술사')) return '기술사'
-    if(name.includes('기능장')) return '기능장'
-    if(name.includes('산업기사')) return '산업기사'
-    if(name.includes('기능사')) return '기능사'
-    if(name.includes('기사')) return '기사'
-    return '기타'
-  }
 
-  const myFamilies: string[] = Array.from(new Set(myInterests.map((n:string)=>getFamily(n)))) as string[]
-
-  let allQuals: string[] = []
-  if(myInterests.length>0 && showOnlyMyInterest){
-    for(const fam of myFamilies){
-      const list = (FAMILIES as any)[fam] as string[] | undefined
-      if(list) allQuals.push(...list)
-    }
-    allQuals = Array.from(new Set([...myInterests, ...allQuals]))
-  } else if(myInterests.length>0){
-    allQuals = myInterests
-  } else {
-    allQuals = ['전기기사','전기공사기사','전기철도기사','철도신호기사']
+    // Load flipbooks
+    fetch('/api/admin/flipbooks').then(r=>r.json()).then(d=>{
+      if(d.flipbooks){
+        setFlipbooks(d.flipbooks.filter((f:any)=> f.category===selectedQual))
+      }
+    }).catch(()=>{})
   }
-  allQuals = Array.from(new Set(allQuals))
-  const filteredByLevel = allQuals.filter((q:string)=> getLevel(q)===selectedLevel)
-
-  const levels = ['기술사','기능장','기사','산업기사','기능사']
 
   return (
-    <main style={{paddingBottom:'90px', background:'#F8F9FB', minHeight:'100vh'}}>
-      <div style={{background:'white', padding:'20px 20px 16px'}}>
-        <h1 style={{fontSize:'20px', fontWeight:800}}>📚 학습</h1>
-        <div style={{fontSize:'13px', color:'#6B7280', marginTop:'6px'}}>원하는 자격증 레벨을 선택하세요</div>
-        {myInterests.length>0 && (
-          <div style={{marginTop:'12px', background:'#FFFBEB', borderRadius:'12px', padding:'10px 12px', border:'1px solid #FDE68A', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <div style={{fontSize:'12px', fontWeight:700}}>👤 내 관심: {myFamilies.join(', ')} ({myInterests.length}개)</div>
-            <div style={{display:'flex', gap:'6px'}}>
-              <button onClick={()=>setShowOnlyMyInterest(true)} style={{padding:'6px 10px', borderRadius:'20px', border:'none', background: showOnlyMyInterest ? '#111827' : 'white', color: showOnlyMyInterest ? 'white' : '#6B7280', fontSize:'10px', fontWeight:700}}>✅ {allQuals.length}개만</button>
-              <button onClick={()=>setShowOnlyMyInterest(false)} style={{padding:'6px 10px', borderRadius:'20px', border:'none', background: !showOnlyMyInterest ? '#111827' : 'white', color: !showOnlyMyInterest ? 'white' : '#6B7280', fontSize:'10px', fontWeight:700}}>내 선택 {myInterests.length}개</button>
-            </div>
-          </div>
-        )}
-        <div style={{display:'flex', gap:'8px', marginTop:'16px', overflowX:'auto'}}>
-          {levels.map(l=>(
-            <button key={l} onClick={()=>setSelectedLevel(l)} style={{padding:'10px 18px', borderRadius:'20px', border:'none', background: selectedLevel===l ? '#111827' : '#F3F4F6', color: selectedLevel===l ? 'white' : '#6B7280', fontSize:'13px', fontWeight:700, whiteSpace:'nowrap'}}>{l}</button>
+    <div style={{minHeight:'100vh', background:'#F5F7FB', paddingBottom:100}}>
+      <div style={{maxWidth:480, margin:'0 auto', padding:16}}>
+        <div style={{fontSize:20, fontWeight:800, marginBottom:16, color:'#1a1a2e'}}>학습</div>
+
+        {/* 자격증 선택 */}
+        <div style={{display:'flex', gap:8, overflowX:'auto', marginBottom:12, paddingBottom:4}}>
+          {QUALIFICATIONS.map(q=>(
+            <button key={q} onClick={()=>{ setSelectedQual(q); setSelectedType('기출 10년') }} style={{padding:'8px 14px', background: selectedQual===q ? '#1a1a2e' : 'white', color: selectedQual===q ? 'white' : '#666', border:'1px solid #E9ECEF', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap'}}>{q}</button>
           ))}
         </div>
-      </div>
 
-      <div style={{padding:'16px 20px'}}>
-        <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px'}}>
-          <div style={{width:'4px', height:'18px', background:'#2563EB', borderRadius:'2px'}}></div>
-          <div style={{fontWeight:800, fontSize:'15px'}}>{selectedLevel} ({filteredByLevel.length}개)</div>
+        {/* 문제 유형 - 동적 버튼! */}
+        <div style={{background:'white', borderRadius:12, padding:12, marginBottom:12, border:'1px solid #EEF2F7'}}>
+          <div style={{fontSize:12, fontWeight:700, marginBottom:8, color:'#1a1a2e'}}>{selectedQual} 문제 유형</div>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+            {problemTypes.map((t:any)=>(
+              <button 
+                key={t.name} 
+                onClick={()=>setSelectedType(t.name)}
+                style={{
+                  padding:'8px 14px', 
+                  background: selectedType===t.name ? '#FFD600' : '#F1F3F5', 
+                  color: selectedType===t.name ? '#1a1a2e' : '#666', 
+                  border: selectedType===t.name ? 'none' : '1px solid #E9ECEF', 
+                  borderRadius:20, 
+                  fontSize:12, 
+                  fontWeight: selectedType===t.name ? 700 : 500, 
+                  cursor:'pointer',
+                  display:'flex', alignItems:'center', gap:4
+                }}
+              >
+                {t.name.includes('기출') ? '📄' : t.name.includes('예상') ? '⭐' : t.name.includes('회') ? '📝' : '📚'} {t.name}
+              </button>
+            ))}
+          </div>
+          <div style={{fontSize:10, color:'#888', marginTop:8}}>
+            💡 MY → PDF 관리에서 "{selectedQual}" 카테고리로 새 유형을 생성하면 여기에 나타납니다!
+          </div>
         </div>
 
-        {filteredByLevel.map((certName:string)=>{
-          const certBooks = flipbooks.filter((f:any)=> f.category===certName)
-          const data = CERT_DATA[certName] || {problems: 200, level: getLevel(certName)}
-          const isSelected = selectedCert===certName
-          const isHot = certName==='전기기사'
+        {/* 선택된 유형의 PDF 목록 */}
+        <div style={{background:'white', borderRadius:12, padding:16, border:'1px solid #EEF2F7'}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:12, color:'#1a1a2e'}}>
+            {selectedQual} - {selectedType} ({flipbooks.filter(f=> selectedType==='기출 10년' ? f.type?.includes('기출') : f.type===selectedType || f.type?.includes(selectedType)).length}개)
+          </div>
 
-          return (
-            <div 
-              key={certName} 
-              onClick={()=>setSelectedCert(certName)}
-              style={{
-                background:'white', borderRadius:'16px', padding:'16px', marginBottom:'12px',
-                border: isSelected ? '2.5px solid #2563EB' : '1.5px solid #BFDBFE',
-                boxShadow: isSelected ? '0 0 0 4px #DBEAFE, 0 4px 12px rgba(37,99,235,0.15)' : '0 1px 3px rgba(37,99,235,0.08)',
-                cursor:'pointer',
-                transition:'all 0.2s ease',
-              }}
-            >
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-                <div style={{flex:1}}>
-                  <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                    <div style={{fontWeight:800, fontSize:'15px', color: isSelected ? '#2563EB' : '#111827'}}>{certName}</div>
-                    {isHot && <span style={{background:'#FFD60A', color:'#111827', fontSize:'10px', padding:'3px 8px', borderRadius:'6px', fontWeight:800}}>HOT</span>}
-                  </div>
-                  <div style={{fontSize:'13px', color:'#6B7280', marginTop:'4px'}}>{data.problems}문제 보유 • {getLevel(certName)}</div>
-                  <div style={{display:'flex', gap:'6px', marginTop:'10px', flexWrap:'wrap'}}>
-                    <span style={{background: isSelected ? '#DBEAFE' : '#EFF6FF', color:'#2563EB', fontSize:'11px', padding:'5px 10px', borderRadius:'20px', fontWeight:600, border: isSelected ? '1px solid #BFDBFE' : 'none'}}>기출 10년</span>
-                    <span style={{background: isSelected ? '#DBEAFE' : '#EFF6FF', color:'#2563EB', fontSize:'11px', padding:'5px 10px', borderRadius:'20px', fontWeight:600, border: isSelected ? '1px solid #BFDBFE' : 'none'}}>예상문제</span>
-                    {problemTypes.filter((t:any)=> t.name!=='기출문제' && t.name!=='예상문제').map((t:any)=>{
-                      const count = certBooks.filter((f:any)=> f.type===t.name).length
-                      return <span key={t.id} style={{background:'#FFFBEB', border:'1px solid #FDE68A', color:'#92400E', fontSize:'11px', padding:'5px 10px', borderRadius:'20px', fontWeight:700}}>{(t as any).icon||'📁'} {t.name} ({count})</span>
-                    })}
-                  </div>
-                </div>
-                <div style={{width:'48px', height:'48px', background: isSelected ? '#DBEAFE' : '#EFF6FF', borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', marginLeft:'12px', border: isSelected ? '1px solid #BFDBFE' : 'none'}}>📘</div>
+          {flipbooks.filter(f=> selectedType==='기출 10년' ? f.type?.includes('기출') : f.type===selectedType || f.type?.includes(selectedType)).map((f:any)=>(
+            <div key={f.id} style={{padding:'12px', background:'#F8F9FA', borderRadius:8, marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:12, fontWeight:600, color:'#1a1a2e'}}>{f.title}</div>
+                <div style={{fontSize:10, color:'#888', marginTop:2}}>{f.category} • {f.type}</div>
               </div>
-              <div style={{display:'flex', gap:'8px', marginTop:'14px'}}>
-                <button style={{flex:1, background: isSelected ? '#1D4ED8' : '#2563EB', color:'white', border:'none', borderRadius:'12px', padding:'12px', fontSize:'13px', fontWeight:700, boxShadow: isSelected ? '0 2px 8px rgba(37,99,235,0.3)' : 'none'}}>모의고사</button>
-                <button style={{flex:1, background: isSelected ? '#DBEAFE' : '#F3F4F6', color: isSelected ? '#1D4ED8' : '#2563EB', border: isSelected ? '1.5px solid #2563EB' : 'none', borderRadius:'12px', padding:'12px', fontSize:'13px', fontWeight:700}}>문제풀기</button>
-              </div>
+              <button onClick={()=>window.open(f.url||f.pdfUrl, '_blank')} style={{padding:'6px 12px', background:'#FFD600', border:'none', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer'}}>보기</button>
             </div>
-          )
-        })}
+          ))}
 
-        <div style={{background:'white', borderRadius:'12px', padding:'12px', marginTop:'12px', fontSize:'11px', color:'#6B7280', textAlign:'center', border:'1px solid #BFDBFE'}}>
-          💙 안 눌린 카드: 가는 파랑 테두리 (1.5px) / 눌린 카드: 두꺼운 파랑 테두리 (2.5px) + 그림자
+          {flipbooks.filter(f=> selectedType==='기출 10년' ? f.type?.includes('기출') : f.type===selectedType || f.type?.includes(selectedType)).length===0 && (
+            <div style={{textAlign:'center', padding:24, color:'#888'}}>
+              <div style={{fontSize:24, marginBottom:8}}>📚</div>
+              <div style={{fontSize:12}}>{selectedQual} - {selectedType} 문제집이 없습니다</div>
+              <div style={{fontSize:10, marginTop:4}}>MY 페이지에서 PDF를 업로드해보세요</div>
+              {selectedType.includes('회') && <div style={{fontSize:11, marginTop:8, background:'#FFF9DB', padding:8, borderRadius:8, color:'#8B6914'}}>💡 "{selectedType}" 유형이 생성되었습니다! PDF를 업로드하면 여기에 나타납니다</div>}
+            </div>
+          )}
+        </div>
+
+        {/* 전체 동적 유형 표시 (디버그용) */}
+        <div style={{marginTop:12, background:'white', borderRadius:12, padding:12, border:'1px dashed #E9ECEF'}}>
+          <div style={{fontSize:11, fontWeight:700, color:'#888', marginBottom:8}}>📌 현재 생성된 모든 유형 (localStorage)</div>
+          <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
+            {(() => {
+              try{
+                const all = JSON.parse(localStorage.getItem('problemTypes')||'[]')
+                return all.map((t:any, i:number)=>(
+                  <span key={i} style={{fontSize:10, background:'#F1F3F5', padding:'4px 8px', borderRadius:12, border:'1px solid #E9ECEF'}}>{t.category}: {t.name}</span>
+                ))
+              }catch{ return <span style={{fontSize:10, color:'#888'}}>없음</span> }
+            })()}
+            {problemTypes.length<=2 && <span style={{fontSize:10, color:'#888'}}>기본 유형만 있음 - MY에서 생성해보세요</span>}
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
