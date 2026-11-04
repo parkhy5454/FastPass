@@ -1,6 +1,5 @@
-import { ALL_CERTS } from '@/lib/certs'
-
 'use client'
+import { ALL_CERTS } from '@/lib/certs'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ChangePassword from '@/components/ChangePassword'
