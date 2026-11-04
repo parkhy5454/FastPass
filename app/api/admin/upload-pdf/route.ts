@@ -1,87 +1,58 @@
-
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { put } from '@vercel/blob'
 import { validatePDFFile, validatePDFMagicBytes, sanitizeInput } from '@/lib/security'
 import { requireAdmin } from '@/lib/session'
 import { prisma } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 
-export async function POST(req: NextRequest){
-  try{
-    const auth = requireAdmin()
-    if ('response' in auth) return auth.response
+// PDF를 Vercel Blob에 저장하고, 플립북 행에 주소를 기록합니다.
+export async function POST(req: NextRequest) {
+  const auth = requireAdmin()
+  if ('response' in auth) return auth.response
 
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json({ error: '파일 저장소(Vercel Blob)가 연결되어 있지 않습니다' }, { status: 500 })
+  }
+
+  try {
     const formData = await req.formData()
-    const file = formData.get('file') as File
-    let title = formData.get('title') as string
-    let category = formData.get('category') as string
-    let type = formData.get('type') as string
+    const file = formData.get('file') as File | null
+    if (!file) return NextResponse.json({ error: '파일이 없습니다' }, { status: 400 })
 
-    if(!file) return NextResponse.json({error:'파일 필요'},{status:400})
-
-    const fileError = validatePDFFile(file)
-    if(fileError) return NextResponse.json({error: fileError},{status:400})
+    const sizeCheck = validatePDFFile(file)
+    if (!sizeCheck.valid) return NextResponse.json({ error: sizeCheck.error }, { status: 400 })
 
     const buffer = await file.arrayBuffer()
-    const magicError = await validatePDFMagicBytes(buffer)
-    if(magicError) return NextResponse.json({error: magicError},{status:400})
+    const magic = validatePDFMagicBytes(buffer)
+    if (!magic.valid) return NextResponse.json({ error: magic.error }, { status: 400 })
 
-    title = sanitizeInput(title||'')
-    category = sanitizeInput(category||'전기기사')
-    type = sanitizeInput(type||'기출문제')
-
-    if(!title || title.length < 2) return NextResponse.json({error:'제목 2자 이상'},{status:400})
-    if(title.length > 200) return NextResponse.json({error:'제목 200자 이하'},{status:400})
-
-    // File URL - use Vercel Blob if env var exists, otherwise use local path
-    // No import of @vercel/blob to avoid build error
-    let fileUrl = `/uploads/${Date.now()}-${Math.random().toString(36).slice(2,6)}.pdf`
-
-    // If BLOB_READ_WRITE_TOKEN exists, try to use blob via fetch API (not via package)
-    // For now, just use placeholder - actual upload will be implemented with package later
-    // To enable blob: npm install @vercel/blob and uncomment below
-    /*
-    if(process.env.BLOB_READ_WRITE_TOKEN){
-      try{
-        const { put } = require('@vercel/blob')
-        const blob = await put(`flipbooks/${Date.now()}.pdf`, buffer, {access:'public'})
-        fileUrl = blob.url
-      }catch{}
-    }
-    */
-
-    let flipbook = null
-    try{
-      flipbook = await prisma.flipbook.create({
-        data:{
-          title,
-          category,
-          type,
-          url: fileUrl,
-          fileName: `${Date.now()}.pdf`,
-          fileSize: file.size,
-          uploadedBy: auth.session.id,
-        } as any
-      })
-    }catch{
-      try{
-        flipbook = await prisma.flipbook.create({
-          data:{
-            title,
-            category,
-            type,
-            pdfUrl: fileUrl,
-          } as any
-        })
-      }catch(e:any){
-        console.error('DB save failed:', e.message)
-        flipbook = {id: Date.now().toString(), title, category, type, url: fileUrl}
-      }
+    const title = sanitizeInput(String(formData.get('title') || ''))
+    const category = sanitizeInput(String(formData.get('category') || '')) || '전기기사'
+    const type = sanitizeInput(String(formData.get('type') || '')) || '기출문제'
+    if (title.length < 2 || title.length > 200) {
+      return NextResponse.json({ error: '제목은 2~200자로 입력하세요' }, { status: 400 })
     }
 
-    return NextResponse.json({ok:true, flipbook})
+    const key = `flipbooks/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.pdf`
+    const blob = await put(key, Buffer.from(buffer), { access: 'public', contentType: 'application/pdf' })
 
-  }catch(e:any){
-    console.error('Upload error:', e.message)
-    return NextResponse.json({error:'업로드 실패: '+e.message},{status:500})
+    const flipbook = await (prisma as any).flipbook.create({
+      data: {
+        title,
+        category,
+        type,
+        pdfUrl: blob.url,
+        fileName: file.name.slice(0, 200),
+        fileSize: file.size,
+        totalPages: 0,
+        isPublished: true,
+      },
+    })
+
+    await logAudit('PDF_UPLOAD', auth.session.loginId, flipbook.id, { title, category, type })
+    return NextResponse.json({ ok: true, flipbook })
+  } catch (e: any) {
+    console.error('upload-pdf error:', e?.message)
+    return NextResponse.json({ error: '업로드 실패. 잠시 후 다시 시도하세요' }, { status: 500 })
   }
 }

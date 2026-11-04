@@ -45,6 +45,8 @@ export default function LearnPage(){
   const [user,setUser]=useState<any>(null)
   const [level,setLevel]=useState<Level>('기사')
   const [selectedCert,setSelectedCert]=useState<string>('전기기사')
+  const [flipbooks,setFlipbooks]=useState<any[]>([])
+  useEffect(()=>{ fetch('/api/admin/flipbooks').then(r=>r.json()).then(d=> setFlipbooks(Array.isArray(d)?d:[])).catch(()=>{}) },[])
   const [myInterests,setMyInterests]=useState<string[]>(['전기기사'])
   const [interestGroups,setInterestGroups]=useState<string[]>(['전기'])
   const [onlyMine,setOnlyMine]=useState(true)
@@ -191,9 +193,15 @@ export default function LearnPage(){
                     </div>
                     <div style={{fontSize:11, color:'#888'}}>{cert.count}문제 보유 • {cert.level}</div>
                     <div style={{display:'flex', gap:6, marginTop:6}}>
-                      {getQuestionTypes(cert.name).slice(0,2).map((t:string)=>(
-                        <span key={t} style={{padding:'3px 8px', background:'#EFF6FF', color:'#3367D6', borderRadius:12, fontSize:10, fontWeight:600}}>{t}</span>
-                      ))}
+                      {(()=>{
+                        const defaults: string[] = getQuestionTypes(cert.name)
+                        const dbTypes: string[] = Array.from(new Set(flipbooks.filter((f:any)=> f.category===cert.name && f.type).map((f:any)=> String(f.type))))
+                        const all: string[] = [...defaults, ...dbTypes.filter((t:string)=> defaults.indexOf(t) === -1)]
+                        return all.map((t:string)=>(
+                          <span key={t} onClick={dbTypes.indexOf(t) !== -1 ? (e)=>{ e.stopPropagation(); router.push(`/learn/flipbooks?cert=${encodeURIComponent(cert.name)}&type=${encodeURIComponent(t)}`) } : undefined}
+                            style={{padding:'3px 8px', background:'#EFF6FF', color:'#3367D6', borderRadius:12, fontSize:10, fontWeight:600, cursor: dbTypes.indexOf(t) !== -1 ? 'pointer' : 'default'}}>{t}</span>
+                        ))
+                      })()}
                     </div>
                   </div>
                   <div style={{width:40, height:40, background:'#F0F7FF', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20}}>📘</div>

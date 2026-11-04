@@ -102,6 +102,9 @@ model Flipbook {
   price       Int      @default(0)
   totalPages  Int      @default(0)
   coverUrl    String?
+  pdfUrl      String?
+  fileName    String?
+  fileSize    Int?
   isPublished Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
