@@ -1,6 +1,6 @@
 import { prisma } from './db'
 
-export type AuditAction = 'USER_DELETE' | 'PASSWORD_RESET' | 'PDF_UPLOAD' | 'PDF_DELETE' | 'REFUND' | 'LOGIN' | 'PAYMENT' | 'PROBLEM_TYPE_CREATE' | 'PROBLEM_TYPE_DELETE'
+export type AuditAction = 'USER_DELETE' | 'PASSWORD_RESET' | 'PDF_UPLOAD' | 'PDF_DELETE' | 'REFUND' | 'LOGIN' | 'PAYMENT' | 'PROBLEM_TYPE_CREATE' | 'PROBLEM_TYPE_DELETE' | 'EXAM_UPLOAD'
 
 export async function logAudit(action: AuditAction, adminId: string, targetId: string, details?: any) {
   try {
