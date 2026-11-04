@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import FlipbookViewer from '@/components/FlipbookViewer'
+import PdfFlipbook from '@/components/PdfFlipbook'
 
 export default function FlipbookPage({ params }: { params: { id: string } }){
   const [flipbook, setFlipbook] = useState<any>(null)
@@ -30,11 +31,7 @@ export default function FlipbookPage({ params }: { params: { id: string } }){
       </div>
       
       {flipbook.pdfUrl ? (
-        <iframe
-          src={flipbook.pdfUrl}
-          title={flipbook.title}
-          style={{width:'100%', height:'80vh', border:'none', borderRadius:12, background:'white'}}
-        />
+        <PdfFlipbook url={flipbook.pdfUrl} title={flipbook.title} />
       ) : (
         <FlipbookViewer
           title={flipbook.title}
@@ -47,10 +44,8 @@ export default function FlipbookPage({ params }: { params: { id: string } }){
         <div style={{fontWeight:700, fontSize:'14px'}}>📚 {flipbook.title}</div>
         <div style={{fontSize:'12px', color:'#6B7280', marginTop:'6px'}}>분류: {flipbook.category} / {flipbook.type}</div>
         <div style={{fontSize:'11px', color:'#9CA3AF', marginTop:'8px', lineHeight:'1.6'}}>
-          • 페이지를 클릭하거나 버튼으로 넘기세요<br/>
-          • 페이지 넘길 때마다 종이 넘기는 소리가 납니다<br/>
-          • 오른쪽 상단 PDF 다운 버튼으로 원본 PDF 다운로드 가능<br/>
-          • 관리자가 업로드한 PDF는 자동으로 플립북으로 변환됩니다
+          • 모서리를 끌거나 버튼으로 페이지를 넘기세요<br/>
+          • 페이지를 넘길 때 종이 넘기는 소리가 납니다(소리 버튼으로 끌 수 있음)
         </div>
       </div>
     </main>
