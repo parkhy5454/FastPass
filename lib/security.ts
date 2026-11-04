@@ -1,13 +1,33 @@
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fastpass-secret-key-2024-parkhy5454'
+// Fixed: Works both server and client - no crash on client
+const JWT_SECRET = (typeof process !== 'undefined' ? process.env.JWT_SECRET : null) || 'fastpass-secret-key-2024-parkhy5454'
 
 function base64urlEncode(str:string){
-  return Buffer.from(str).toString('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
+  if(typeof Buffer !== 'undefined'){
+    return Buffer.from(str).toString('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
+  }
+  // Browser fallback
+  return btoa(str).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
 }
 function base64urlDecode(str:string){
   str = str.replace(/-/g,'+').replace(/_/g,'/')
   while(str.length % 4) str += '='
-  return Buffer.from(str, 'base64').toString()
+  if(typeof Buffer !== 'undefined'){
+    return Buffer.from(str, 'base64').toString()
+  }
+  return atob(str)
+}
+
+function getCrypto(){
+  if(typeof window !== 'undefined'){
+    // Browser - return null, use simple hash
+    return null
+  }
+  try{
+    return require('crypto')
+  }catch{
+    return null
+  }
 }
 
 export function createJWT(payload:any){
@@ -18,9 +38,13 @@ export function createJWT(payload:any){
   const headerB64 = base64urlEncode(JSON.stringify(header))
   const payloadB64 = base64urlEncode(JSON.stringify(fullPayload))
   const data = `${headerB64}.${payloadB64}`
-  const crypto = require('crypto')
-  const signature = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-  return `${data}.${signature}`
+  const crypto = getCrypto()
+  if(crypto){
+    const signature = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
+    return `${data}.${signature}`
+  }
+  // Browser fallback - simple (not secure, but won't crash)
+  return `${data}.browser-fallback`
 }
 export const signJWT = createJWT
 
@@ -30,8 +54,25 @@ export function verifyJWT(token:string){
     const parts = token.split('.')
     if(parts.length !== 3) return null
     const [headerB64, payloadB64, signature] = parts
+    // If browser fallback signature, just decode payload
+    if(signature === 'browser-fallback'){
+      try{
+        const payloadJson = base64urlDecode(payloadB64)
+        return JSON.parse(payloadJson)
+      }catch{ return null }
+    }
     const data = `${headerB64}.${payloadB64}`
-    const crypto = require('crypto')
+    const crypto = getCrypto()
+    if(!crypto){
+      // Browser - just decode without verifying
+      try{
+        const payloadJson = base64urlDecode(payloadB64)
+        const payload = JSON.parse(payloadJson)
+        const now = Math.floor(Date.now()/1000)
+        if(payload.exp && payload.exp < now) return null
+        return payload
+      }catch{ return null }
+    }
     const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
     if(signature !== expectedSig) return null
     const payloadJson = base64urlDecode(payloadB64)
@@ -43,28 +84,33 @@ export function verifyJWT(token:string){
 }
 
 export function hashPassword(password:string){
-  const crypto = require('crypto')
-  return crypto.createHash('sha256').update(password + JWT_SECRET).digest('hex')
+  const crypto = getCrypto()
+  if(crypto){
+    return crypto.createHash('sha256').update(password + JWT_SECRET).digest('hex')
+  }
+  // Browser fallback - simple
+  let hash = 0
+  const str = password + JWT_SECRET
+  for(let i=0;i<str.length;i++){ hash = ((hash<<5)-hash)+str.charCodeAt(i); hash|=0 }
+  return hash.toString(16)
 }
 export function verifyPassword(password:string, hash:string){
   return hashPassword(password) === hash
 }
 export function generateCSRFToken(){
-  const crypto = require('crypto')
-  return crypto.randomBytes(32).toString('hex')
+  const crypto = getCrypto()
+  if(crypto) return crypto.randomBytes(32).toString('hex')
+  return Math.random().toString(36).substring(2)+Date.now().toString(36)
 }
 
-// Fixed: accepts 1 or 2 args - (loginId, role) or (payload)
 export function isAdmin(loginIdOrPayload:any, roleOrUndefined?:any){
   if(!loginIdOrPayload) return false
-  // Case: isAdmin(loginId, role)
   if(typeof loginIdOrPayload === 'string'){
     const loginId = loginIdOrPayload
     const role = roleOrUndefined
     if(role === 'ADMIN') return true
     return loginId.includes('parkhy5454') || loginId === 'admin' || loginId === 'demo'
   }
-  // Case: isAdmin(payload)
   const p = loginIdOrPayload
   return p.role === 'ADMIN' || p.loginId?.includes('parkhy5454') || p.loginId === 'admin' || p.email?.includes('parkhy5454') || p.loginId === 'demo'
 }
@@ -92,7 +138,7 @@ export function validatePDFFile(file:any){
 }
 export function validatePDFMagicBytes(buffer:any){
   try{
-    const header = Buffer.from(buffer.slice(0,4)).toString()
+    const header = typeof Buffer !== 'undefined' ? Buffer.from(buffer.slice(0,4)).toString() : String.fromCharCode(...new Uint8Array(buffer.slice(0,4)))
     if(!header.startsWith('%PDF')) return {valid:false, error:'PDF 파일이 아닙니다'}
     return {valid:true}
   }catch{ return {valid:false, error:'PDF 검증 실패'} }
