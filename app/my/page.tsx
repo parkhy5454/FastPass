@@ -13,6 +13,7 @@ export default function MyPage(){
   const [members,setMembers]=useState<any[]>([])
   const [search,setSearch]=useState('')
   const [copied,setCopied]=useState('')
+  const [fbCounts,setFbCounts]=useState<Record<string,number>>({})
   const [pdfTypes,setPdfTypes]=useState<any[]>([{id:'default-1', name:'기출문제', category:'전기기사', count:0},{id:'default-2', name:'예상문제', category:'전기기사', count:0}])
   const [selectedType,setSelectedType]=useState('전체')
   const [newTypeName,setNewTypeName]=useState('')
@@ -36,10 +37,22 @@ export default function MyPage(){
   }
 
   function loadProblemTypes(){
-    fetch('/api/admin/problem-types').then(r=>r.json()).then(d=>{ if(d.types && d.types.length>0){ const defaults=[{id:'default-1', name:'기출문제', category:'전기기사', count:0},{id:'default-2', name:'예상문제', category:'전기기사', count:0}]; const all=[...defaults]; d.types.forEach((t:any)=>{ if(!all.find((a:any)=> a.name===t.name && a.category===t.category)) all.push(t) }); setPdfTypes(all) } }).catch(()=>{
-      try{ const saved=JSON.parse(localStorage.getItem('problemTypes')||'[]'); if(saved.length>0){ setPdfTypes((prev:any)=>{ const merged=[...prev]; saved.forEach((t:any)=>{ if(!merged.find((m:any)=> m.name===t.name && m.category===t.category)) merged.push(t) }); return merged }) } }catch{}
+    Promise.all([
+      fetch('/api/admin/problem-types').then(r=>r.json()).catch(()=>({types:[]})),
+      fetch('/api/admin/flipbooks').then(r=>r.json()).catch(()=>[]),
+    ]).then(([tRes, fbRes])=>{
+      const dbTypes:any[] = Array.isArray(tRes?.types) ? tRes.types : []
+      const fbs:any[] = Array.isArray(fbRes) ? fbRes : []
+      const counts:Record<string,number> = {}
+      fbs.forEach((f:any)=>{ const k=`${f.category}-${f.type}`; counts[k]=(counts[k]||0)+1 })
+      const all:any[] = [
+        {id:'default-1', name:'기출문제', category:'전기기사'},
+        {id:'default-2', name:'예상문제', category:'전기기사'},
+      ]
+      dbTypes.forEach((t:any)=>{ if(!all.find((a:any)=> a.name===t.name && a.category===t.category)) all.push(t) })
+      setPdfTypes(all)
+      setFbCounts(counts)
     })
-    fetch('/api/admin/flipbooks').then(r=>r.json()).then(d=>{ if(d.flipbooks){ const counts:Record<string,number>={}; d.flipbooks.forEach((f:any)=>{ const key=`${f.category}-${f.type}`; counts[key]=(counts[key]||0)+1 }); setPdfTypes(prev=> prev.map(t=> ({...t, count: counts[`${t.category}-${t.name}`]||0}))) } }).catch(()=>{})
   }
 
   if(!user) return <div style={{padding:40, textAlign:'center', background:'#F8F9FB', minHeight:'100vh'}}>로딩중...</div>
@@ -72,7 +85,7 @@ export default function MyPage(){
   }
 
   const filteredMembers=members.filter((m:any)=> !search || m.loginId?.includes(search) || m.name?.includes(search) || m.email?.includes(search))
-  const filteredTypes=pdfTypes.filter(t=> t.category===qualification || t.id.startsWith('default-'))
+  const filteredTypes=pdfTypes.filter(t=> t.category===qualification || t.id.startsWith('default-')).map(t=>({...t, count: fbCounts[`${qualification}-${t.name}`]||0}))
   const totalCount=filteredTypes.reduce((a,b)=>a+b.count,0)
 
   return (
