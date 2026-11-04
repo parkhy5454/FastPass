@@ -20,7 +20,10 @@ export default function MyPage(){
   const [uploading, setUploading] = useState(false)
   const [newTypeName, setNewTypeName] = useState('')
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'member'|'flipbook'>('member')
+  const [activeTab, setActiveTab] = useState<'profile'|'member'|'flipbook'>('profile')
+  const [referralCode, setReferralCode] = useState('')
+  const [referralStats, setReferralStats] = useState<any>({count:0, points:0, paidCount:0, referredUsers:[]})
+  const [copied, setCopied] = useState(false)
 
   const allQualifications = ['전기기사','전기공사기사','전기철도기사','전기산업기사','전기기능사','전기기능장','정보통신기사','정보처리기사','전자기사','토목기사','토목산업기사','측량및지형공간정보기사','기계기사','기계설계기사','가스기사','건축기사','소방설비기사(전기)']
 
@@ -28,7 +31,13 @@ export default function MyPage(){
     fetch('/api/auth/me').then(r=>r.json()).then(d=>{
       setUser(d.user)
       setLoading(false)
+      if(d.user){
+        const c = `${d.user.loginId}-${(d.user.id||'').slice(0,4).toUpperCase()}`
+        setReferralCode(c)
+      }
       loadData()
+      // referral stats
+      fetch('/api/referral/stats').then(r=>r.json()).then(s=> setReferralStats(s)).catch(()=>{})
     }).catch(()=>setLoading(false))
   },[])
 
@@ -66,6 +75,33 @@ export default function MyPage(){
   }
 
   const filtered = flipbooks.filter(f=> selectedType==='전체' ? true : f.type===selectedType)
+  const referralLink = typeof window !== 'undefined' ? `${location.origin}/signup?ref=${referralCode}` : ''
+
+  const shareKakao = async () => {
+    const msg = `[자격증 패스트패스] ${user?.name||'친구'}님이 초대!\n전기·토목·정보통신 등 모든 자격증 학습\n가입시 1000P! ${referralLink}`
+    try{
+      if((navigator as any).share){
+        await (navigator as any).share({title:'자격증 패스트패스 초대', text:msg, url:referralLink})
+        return
+      }
+    }catch{}
+    await navigator.clipboard.writeText(msg)
+    alert('초대 메시지가 복사됐어요! 카톡에 붙여넣기 해주세요 💬')
+  }
+  const shareSMS = () => {
+    const msg = `[자격증 패스트패스] ${user?.name}님 초대! 가입시 1000P ${referralLink}`
+    location.href = `sms:?&body=${encodeURIComponent(msg)}`
+  }
+  const shareEmail = () => {
+    const sub = `[자격증 패스트패스] ${user?.name}님이 초대했어요`
+    const body = `${user?.name}님이 추천한 자격증 패스트패스! 가입 링크: ${referralLink}`
+    location.href = `mailto:?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`
+  }
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(referralLink)
+    setCopied(true)
+    setTimeout(()=>setCopied(false),2000)
+  }
 
   if(loading) return <main style={{padding:'20px'}}>로딩중...</main>
   if(!user) return <main style={{padding:'20px'}}><div>로그인 필요</div><button onClick={()=>location.href='/login'} style={{marginTop:'12px', background:'#111827', color:'white', padding:'12px 20px', borderRadius:'10px', border:'none'}}>로그인으로</button></main>
@@ -73,25 +109,69 @@ export default function MyPage(){
   return (
     <main style={{padding:'20px', paddingBottom:'100px', background:'#F8F9FB', minHeight:'100vh'}}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <h1 style={{fontSize:'18px', fontWeight:800}}>⚙️ MY / 설정 - PDF 플립북 관리</h1>
-        <button onClick={handleLogout} style={{background:'#FEE2E2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:'10px', padding:'10px 16px', fontSize:'13px', fontWeight:800}}>
-          🚪 로그아웃
-        </button>
+        <h1 style={{fontSize:'18px', fontWeight:800}}>⚙️ MY / 설정</h1>
+        <button onClick={handleLogout} style={{background:'#FEE2E2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:'10px', padding:'10px 16px', fontSize:'13px', fontWeight:800}}>🚪 로그아웃</button>
       </div>
 
       <div style={{background:'white', borderRadius:'16px', padding:'16px', marginTop:'16px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div>
           <div style={{fontWeight:700, fontSize:'14px'}}>내 정보 <span style={{background:'#FFD60A', fontSize:'11px', padding:'3px 8px', borderRadius:'10px'}}>{isAdminUser(user.loginId, user.role) ? '배포자 관리자' : '일반 회원'}</span></div>
           <div style={{fontSize:'13px', marginTop:'6px', fontWeight:600}}>{user.loginId} / {user.role}</div>
-          <div style={{fontSize:'11px', color:'#6B7280', marginTop:'4px'}}>관심: {(user.interests||[]).join(', ') || '없음'}</div>
+          <div style={{fontSize:'11px', color:'#6B7280', marginTop:'4px'}}>관심: {(user.interests||[]).join(', ') || '없음'} / 포인트: {(user.points||0).toLocaleString()}P</div>
         </div>
-        <button onClick={handleLogout} style={{background:'#F3F4F6', color:'#6B7280', border:'none', borderRadius:'10px', padding:'10px 14px', fontSize:'12px', fontWeight:700}}>로그아웃</button>
       </div>
 
+      {/* 탭 */}
       <div style={{background:'white', borderRadius:'16px', padding:'12px', marginTop:'12px', display:'flex', gap:'8px'}}>
-        <button onClick={()=>setActiveTab('member')} style={{flex:1, padding:'12px', borderRadius:'12px', border:'none', background: activeTab==='member' ? '#111827' : '#F3F4F6', color: activeTab==='member' ? 'white' : '#6B7280', fontWeight:700, fontSize:'13px'}}>👥 회원 {members.length}명</button>
-        <button onClick={()=>setActiveTab('flipbook')} style={{flex:1, padding:'12px', borderRadius:'12px', border:'none', background: activeTab==='flipbook' ? '#111827' : '#F3F4F6', color: activeTab==='flipbook' ? 'white' : '#6B7280', fontWeight:700, fontSize:'13px'}}>📚 플립북 {flipbooks.length}개</button>
+        <button onClick={()=>setActiveTab('profile')} style={{flex:1, padding:'12px', borderRadius:'12px', border:'none', background: activeTab==='profile' ? '#111827' : '#F3F4F6', color: activeTab==='profile' ? 'white' : '#6B7280', fontWeight:700, fontSize:'13px'}}>🎁 친구추천</button>
+        <button onClick={()=>setActiveTab('member')} style={{flex:1, padding:'12px', borderRadius:'12px', border:'none', background: activeTab==='member' ? '#111827' : '#F3F4F6', color: activeTab==='member' ? 'white' : '#6B7280', fontWeight:700, fontSize:'13px'}}>👥 회원 {members.length}</button>
+        <button onClick={()=>setActiveTab('flipbook')} style={{flex:1, padding:'12px', borderRadius:'12px', border:'none', background: activeTab==='flipbook' ? '#111827' : '#F3F4F6', color: activeTab==='flipbook' ? 'white' : '#6B7280', fontWeight:700, fontSize:'13px'}}>📚 {flipbooks.length}</button>
       </div>
+
+      {/* 친구 추천 탭 - 기본으로 보이게! */}
+      {activeTab==='profile' && (
+        <div style={{marginTop:'12px'}}>
+          <div style={{background:'white', borderRadius:'20px', padding:'20px', border:'2px solid #FFD60A'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div style={{fontWeight:800, fontSize:'16px'}}>🎁 친구 추천 포인트</div>
+              <span style={{background:'#FFD60A', padding:'4px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:800}}>최대 5000P</span>
+            </div>
+            <div style={{marginTop:'8px', fontSize:'12px', color:'#6B7280', lineHeight:'1.6'}}>
+              친구가 <b style={{color:'#111827'}}>가입하면 1000P</b>, <b style={{color:'#2563EB'}}>결제하면 5000P 추가!</b><br/>
+              내 추천코드: <b style={{background:'#F3F4F6', padding:'3px 8px', borderRadius:'6px'}}>{referralCode}</b>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px', marginTop:'16px'}}>
+              <button onClick={shareKakao} style={{background:'#FEE500', border:'none', borderRadius:'14px', padding:'12px 4px', fontWeight:700, fontSize:'12px'}}><div style={{fontSize:'22px'}}>💬</div>카톡</button>
+              <button onClick={shareSMS} style={{background:'#EFF6FF', border:'1.5px solid #BFDBFE', borderRadius:'14px', padding:'12px 4px', fontWeight:700, fontSize:'12px', color:'#2563EB'}}><div style={{fontSize:'22px'}}>💌</div>문자</button>
+              <button onClick={shareEmail} style={{background:'#F3F4F6', border:'none', borderRadius:'14px', padding:'12px 4px', fontWeight:700, fontSize:'12px'}}><div style={{fontSize:'22px'}}>📧</div>이메일</button>
+              <button onClick={copyLink} style={{background: copied ? '#22C55E' : '#111827', color:'white', border:'none', borderRadius:'14px', padding:'12px 4px', fontWeight:700, fontSize:'12px'}}><div style={{fontSize:'22px'}}>{copied ? '✅' : '🔗'}</div>{copied ? '복사됨!' : '복사'}</button>
+            </div>
+            <div style={{marginTop:'16px', background:'#F8F9FB', borderRadius:'14px', padding:'14px', display:'flex', justifyContent:'space-around', textAlign:'center'}}>
+              <div><div style={{fontSize:'18px', fontWeight:800, color:'#2563EB'}}>{referralStats.count}명</div><div style={{fontSize:'10px', color:'#6B7280'}}>추천 가입</div></div>
+              <div style={{width:'1px', background:'#E5E7EB'}}/>
+              <div><div style={{fontSize:'18px', fontWeight:800, color:'#22C55E'}}>{referralStats.paidCount}명</div><div style={{fontSize:'10px', color:'#6B7280'}}>결제 완료</div></div>
+              <div style={{width:'1px', background:'#E5E7EB'}}/>
+              <div><div style={{fontSize:'18px', fontWeight:800}}>{(referralStats.points||0).toLocaleString()}P</div><div style={{fontSize:'10px', color:'#6B7280'}}>받은 포인트</div></div>
+            </div>
+            {referralStats.referredUsers?.length>0 && (
+              <div style={{marginTop:'14px'}}>
+                <div style={{fontSize:'12px', fontWeight:700, marginBottom:'6px'}}>추천한 친구 목록</div>
+                {referralStats.referredUsers.slice(0,5).map((u:any)=>(
+                  <div key={u.id} style={{display:'flex', justifyContent:'space-between', fontSize:'12px', padding:'8px 0', borderBottom:'1px solid #F3F4F6'}}>
+                    <span>{u.name} ({u.loginId})</span>
+                    <span style={{fontWeight:700, color: u.hasPaid ? '#2563EB' : '#9CA3AF'}}>{u.hasPaid ? '✅ 결제 +5000P' : '가입 +1000P'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{marginTop:'12px', background:'#FFFBEB', borderRadius:'10px', padding:'10px', fontSize:'11px', color:'#92400E', wordBreak:'break-all'}}>🔗 추천링크: {referralLink}<br/>💡 1P = 1원, 문제집 구매시 사용 가능</div>
+          </div>
+
+          <div style={{background:'white', borderRadius:'16px', padding:'16px', marginTop:'12px'}}>
+            <button onClick={handleLogout} style={{width:'100%', background:'#DC2626', color:'white', border:'none', borderRadius:'12px', padding:'16px', fontSize:'14px', fontWeight:800}}>🚪 로그아웃 - {user.loginId}</button>
+          </div>
+        </div>
+      )}
 
       {activeTab==='member' && (
         <div style={{background:'white', borderRadius:'16px', padding:'16px', marginTop:'12px'}}>
@@ -106,7 +186,7 @@ export default function MyPage(){
       )}
 
       {activeTab==='flipbook' && (
-        <div style={{background:'white', borderRadius:'20px', padding:'16px', marginTop:'12px'}}>
+        <div style={{background:'white', borderRadius:'20px', padding:'16px', marginTop:'12px}}>
           <div style={{fontWeight:800, fontSize:'14px'}}>📚 기출 / 예상 문제 PDF 관리</div>
           <div style={{background:'#FFFBEB', borderRadius:'16px', padding:'12px', border:'1px dashed #F59E0B', marginTop:'12px', marginBottom:'12px'}}>
             <div style={{display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px'}}>
@@ -146,25 +226,8 @@ export default function MyPage(){
             <div><div style={{fontSize:'12px', fontWeight:600, marginBottom:'6px'}}>PDF 파일</div><div style={{display:'flex', gap:'8px', background:'white', padding:'10px', borderRadius:'10px', border:'1px solid #E5E7EB'}}><label htmlFor="pdfFile" style={{background:'#F3F4F6', padding:'8px 14px', borderRadius:'8px', fontSize:'12px', cursor:'pointer'}}>파일 선택</label><input id="pdfFile" type="file" accept=".pdf" style={{display:'none'}} /><span style={{fontSize:'12px', color:'#6B7280'}}>선택된 파일 없음</span></div></div>
             <button type="submit" disabled={uploading} style={{background:'#FFD60A', border:'none', borderRadius:'12px', padding:'14px', fontWeight:800}}>{uploading?'업로드중...':`📤 ${uploadType} 업로드`}</button>
           </form>
-          <div style={{marginTop:'16px'}}>
-            <div style={{fontWeight:700, fontSize:'13px'}}>{selectedType} 목록 - {filtered.length}개</div>
-            {filtered.map((f:any)=>(
-              <div key={f.id} style={{background:'#F8F9FB', borderRadius:'10px', padding:'12px', marginTop:'8px', display:'flex', justifyContent:'space-between'}}>
-                <div><div style={{fontWeight:700, fontSize:'12px'}}>{f.title}</div><div style={{fontSize:'11px', color:'#6B7280'}}>{f.category} / {f.type}</div></div>
-                <button onClick={async()=>{ if(!confirm('삭제?')) return; await fetch('/api/admin/delete-flipbook', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:f.id})}); loadData() }} style={{background:'#FEE2E2', color:'#DC2626', border:'none', borderRadius:'8px', padding:'6px 10px', fontSize:'11px'}}>삭제</button>
-              </div>
-            ))}
-          </div>
         </div>
       )}
-
-      {/* 로그아웃 - 검정 바탕 없이 깔끔하게! */}
-      <div style={{background:'white', borderRadius:'16px', padding:'16px', marginTop:'16px'}}>
-        <button onClick={handleLogout} style={{width:'100%', background:'#DC2626', color:'white', border:'none', borderRadius:'12px', padding:'16px', fontSize:'14px', fontWeight:800}}>
-          🚪 로그아웃 - {user.loginId}
-        </button>
-        <div style={{fontSize:'11px', color:'#9CA3AF', textAlign:'center', marginTop:'8px'}}>로그아웃하면 로그인 페이지로 이동합니다</div>
-      </div>
     </main>
   )
 }
