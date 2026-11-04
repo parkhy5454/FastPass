@@ -12,6 +12,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     message: '채용 확정 기록 완료 (청구는 결제 연동 후 처리)',
-    details: { jobId, hiredUser: hiredUserName, additionalFee: 45000, reward: 50000, billed: false },
+    details: { jobId, hiredUser: hiredUserName, fee: 450000, billed: false },
   })
 }

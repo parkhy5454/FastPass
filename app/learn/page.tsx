@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import AdsBanner from '@/components/AdsBanner'
 import { ALL_CERTS, LEVELS, type Level, type CertCategory } from '@/lib/certs'
 
 
@@ -176,6 +177,7 @@ export default function LearnPage(){
               </div>
             ))}
           </div>
+          <AdsBanner />
         </div>
       </div>
     </div>

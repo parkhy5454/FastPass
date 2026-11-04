@@ -42,6 +42,11 @@ export async function POST(req: NextRequest) {
       data: { submittedAt: now, answers: clean, result, total: Math.round(result.total), passed: result.passed, timedOut },
     })
     if (updated.count === 0) return NextResponse.json({ error: '이미 제출했습니다' }, { status: 409 })
+    // 문제풀이 포인트: 답한 문항 1개당 10P (회차당 한 번만 제출되므로 중복 지급되지 않습니다)
+    const solvedPoints = Object.keys(clean).length * 10
+    if (solvedPoints > 0) {
+      await prisma.user.update({ where: { id: auth.session.id }, data: { points: { increment: solvedPoints }, pointsUpdatedAt: now } }).catch(() => {})
+    }
 
     return NextResponse.json({ ok: true, total: result.total, passed: result.passed, bySubject: result.bySubject, timedOut })
   } catch (e: any) {
