@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 type Q = { id: string; subject: string; number: number; content: string; choices: string[] }
-type Round = { round: string; questionCount: number; durationMin: number; passScore: number }
+type Round = { round: string; questionCount: number; durationMin: number; passScore: number; status: 'done' | 'open' | null }
 
 // 실제 시험처럼 시간을 재고, 끝나면 자동으로 제출합니다.
 export default function MockExamPage() {
@@ -66,6 +66,15 @@ export default function MockExamPage() {
     if (attemptId && !result && deadline && remainMs <= 0) submit(true)
   }, [remainMs, attemptId, result, deadline])
 
+  // 고른 답을 서버에 임시 저장 (실패해도 화면 진행은 막지 않음; 제출 때 다시 전체를 보냅니다)
+  function saveAnswers(next: Record<string, number>) {
+    if (!attemptId) return
+    fetch('/api/exam/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ attemptId, answers: next }),
+    }).catch(() => {})
+  }
+
   async function start(r: Round) {
     setError('')
     const res = await fetch('/api/exam/start', {
@@ -80,7 +89,7 @@ export default function MockExamPage() {
     setDeadline(Date.parse(d.deadlineAt))
     setAttemptId(d.attemptId)
     setQuestions(d.questions)
-    setAnswers({})
+    setAnswers(d.answers || {})
     setCur(0)
     submittingRef.current = false
   }
@@ -120,7 +129,11 @@ export default function MockExamPage() {
               <div style={{ fontWeight: 800 }}>{r.round}</div>
               <div style={{ fontSize: 12, color: '#6B7280' }}>{r.questionCount}문항 · {r.durationMin}분 · 합격 {r.passScore}점</div>
             </div>
-            <button onClick={() => start(r)} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: '#2B5CE6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>응시</button>
+            {r.status === 'done' ? (
+              <span style={{ padding: '10px 14px', borderRadius: 10, background: '#E5E7EB', color: '#6B7280', fontWeight: 700, fontSize: 13 }}>응시 완료</span>
+            ) : (
+              <button onClick={() => start(r)} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: '#2B5CE6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>{r.status === 'open' ? '이어서 응시' : '응시'}</button>
+            )}
           </div>
         ))}
       </main>
@@ -145,7 +158,9 @@ export default function MockExamPage() {
           <div style={{ fontSize: 15, fontWeight: 700, margin: '10px 0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.content}</div>
           {q.choices.map((c, i) => (
             <button key={i} onClick={() => {
-              setAnswers({ ...answers, [q.id]: i + 1 })
+              const next = { ...answers, [q.id]: i + 1 }
+              setAnswers(next)
+              saveAnswers(next)
               if (autoNext && cur < questions.length - 1) {
                 const from = cur
                 setTimeout(() => setCur(c => (c === from ? from + 1 : c)), 300)
