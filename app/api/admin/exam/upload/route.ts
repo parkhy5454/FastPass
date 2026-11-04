@@ -26,22 +26,25 @@ export async function POST(req: NextRequest) {
     const rounds = new Map<string, { category: string; round: string }>()
     rows.forEach(r => rounds.set(`${r.category}|${r.round}`, { category: r.category, round: r.round }))
 
-    const ops: any[] = []
-    for (const r of Array.from(rounds.values())) {
-      ops.push(prisma.examRound.upsert({
+    // 문항을 하나씩 upsert하면 Vercel 제한 시간(10초)을 넘을 수 있어서,
+    // 회차별로 기존 문항을 지우고 한 번의 createMany로 넣습니다. 전체가 하나의 트랜잭션입니다.
+    const roundList = Array.from(rounds.values())
+    await prisma.$transaction([
+      ...roundList.map(r => prisma.examRound.upsert({
         where: { category_round: { category: r.category, round: r.round } },
         update: {},
         create: { category: r.category, round: r.round, durationMin, passScore, subjectMin },
-      }))
-    }
-    for (const r of rows) {
-      ops.push(prisma.examQuestion.upsert({
-        where: { category_round_number: { category: r.category, round: r.round, number: r.number } },
-        update: { subject: r.subject, content: r.content, choices: r.choices, answer: r.answer, explanation: r.explanation || null },
-        create: { category: r.category, round: r.round, subject: r.subject, number: r.number, content: r.content, choices: r.choices, answer: r.answer, explanation: r.explanation || null },
-      }))
-    }
-    await prisma.$transaction(ops)
+      })),
+      prisma.examQuestion.deleteMany({
+        where: { OR: roundList.map(r => ({ category: r.category, round: r.round })) },
+      }),
+      prisma.examQuestion.createMany({
+        data: rows.map(r => ({
+          category: r.category, round: r.round, subject: r.subject, number: r.number,
+          content: r.content, choices: r.choices, answer: r.answer, explanation: r.explanation || null,
+        })),
+      }),
+    ])
     await logAudit('EXAM_UPLOAD', auth.session.loginId, 'exam', { questions: rows.length, rounds: rounds.size })
     return NextResponse.json({ ok: true, questions: rows.length, rounds: rounds.size })
   } catch (e: any) {
