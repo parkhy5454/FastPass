@@ -1,151 +1,27 @@
 
-const JWT_SECRET = (typeof process !== 'undefined' ? process.env.JWT_SECRET : null) || 'fastpass-secret-key-2024-parkhy5454'
+import crypto from 'crypto'
+const SECRET = process.env.JWT_SECRET || 'fastpass-secret-2024'
 
-function base64urlEncode(str:string){
-  if(typeof Buffer !== 'undefined'){
-    return Buffer.from(str).toString('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-  }
-  return btoa(str).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-}
-function base64urlDecode(str:string){
-  str = str.replace(/-/g,'+').replace(/_/g,'/')
-  while(str.length % 4) str += '='
-  if(typeof Buffer !== 'undefined'){
-    return Buffer.from(str, 'base64').toString()
-  }
-  return atob(str)
+export function signJWT(payload: any): string {
+  const header = Buffer.from(JSON.stringify({alg:'HS256', typ:'JWT'})).toString('base64url')
+  const body = Buffer.from(JSON.stringify({...payload, exp: Math.floor(Date.now()/1000)+ 60*60*24*7})).toString('base64url')
+  const sig = crypto.createHmac('sha256', SECRET).update(`${header}.${body}`).digest('base64url')
+  return `${header}.${body}.${sig}`
 }
 
-function getCrypto(){
-  if(typeof window !== 'undefined'){ return null }
-  try{ return require('crypto') }catch{ return null }
-}
-
-export function createJWT(payload:any){
-  const header = {alg:'HS256', typ:'JWT'}
-  const now = Math.floor(Date.now()/1000)
-  const exp = now + 30*24*60*60
-  const fullPayload = {...payload, iat: now, exp}
-  const headerB64 = base64urlEncode(JSON.stringify(header))
-  const payloadB64 = base64urlEncode(JSON.stringify(fullPayload))
-  const data = `${headerB64}.${payloadB64}`
-  const crypto = getCrypto()
-  if(crypto){
-    const signature = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-    return `${data}.${signature}`
-  }
-  return `${data}.browser-fallback`
-}
-export const signJWT = createJWT
-
-export function verifyJWT(token:string){
+export function verifyJWT(token: string): any {
   try{
-    if(!token) return null
-    const parts = token.split('.')
-    if(parts.length !== 3) return null
-    const [headerB64, payloadB64, signature] = parts
-    if(signature === 'browser-fallback'){
-      try{ const payloadJson = base64urlDecode(payloadB64); return JSON.parse(payloadJson) }catch{ return null }
-    }
-    const data = `${headerB64}.${payloadB64}`
-    const crypto = getCrypto()
-    if(!crypto){
-      try{
-        const payloadJson = base64urlDecode(payloadB64)
-        const payload = JSON.parse(payloadJson)
-        const now = Math.floor(Date.now()/1000)
-        if(payload.exp && payload.exp < now) return null
-        return payload
-      }catch{ return null }
-    }
-    const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('base64').replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')
-    if(signature !== expectedSig) return null
-    const payloadJson = base64urlDecode(payloadB64)
-    const payload = JSON.parse(payloadJson)
-    const now = Math.floor(Date.now()/1000)
-    if(payload.exp && payload.exp < now) return null
+    const [h,b,s] = token.split('.')
+    if(!h||!b||!s) return null
+    const expected = crypto.createHmac('sha256', SECRET).update(`${h}.${b}`).digest('base64url')
+    if(expected!==s) return null
+    const payload = JSON.parse(Buffer.from(b, 'base64url').toString())
+    if(payload.exp && payload.exp < Math.floor(Date.now()/1000)) return null
     return payload
   }catch{ return null }
 }
 
-export function hashPassword(password:string){
-  const crypto = getCrypto()
-  if(crypto){ return crypto.createHash('sha256').update(password + JWT_SECRET).digest('hex') }
-  let hash = 0
-  const str = password + JWT_SECRET
-  for(let i=0;i<str.length;i++){ hash = ((hash<<5)-hash)+str.charCodeAt(i); hash|=0 }
-  return hash.toString(16)
-}
-export function verifyPassword(password:string, hash:string){ return hashPassword(password) === hash }
-export function generateCSRFToken(){
-  const crypto = getCrypto()
-  if(crypto) return crypto.randomBytes(32).toString('hex')
-  return Math.random().toString(36).substring(2)+Date.now().toString(36)
-}
-export function isAdmin(loginIdOrPayload:any, roleOrUndefined?:any){
-  if(!loginIdOrPayload) return false
-  if(typeof loginIdOrPayload === 'string'){
-    const loginId = loginIdOrPayload
-    const role = roleOrUndefined
-    if(role === 'ADMIN') return true
-    return loginId.includes('parkhy5454') || loginId === 'admin' || loginId === 'demo'
-  }
-  const p = loginIdOrPayload
-  return p.role === 'ADMIN' || p.loginId?.includes('parkhy5454') || p.loginId === 'admin' || p.email?.includes('parkhy5454') || p.loginId === 'demo'
-}
-export function validateLoginId(loginId:string){
-  if(!loginId || loginId.length < 3) return {valid:false, error:'아이디는 3자 이상'}
-  if(loginId.length > 20) return {valid:false, error:'아이디는 20자 이하'}
-  if(!/^[a-zA-Z0-9_@.]+$/.test(loginId)) return {valid:false, error:'아이디 형식 오류'}
-  return {valid:true}
-}
-export function validatePassword(password:string){
-  if(!password || password.length < 4) return {valid:false, error:'비밀번호 4자 이상'}
-  if(password.length > 50) return {valid:false, error:'비밀번호 50자 이하'}
-  return {valid:true}
-}
-export function sanitizeInput(input:string){
-  if(!input) return ''
-  return input.toString().trim().slice(0,1000).replace(/<script>/gi,'').replace(/<\/script>/gi,'')
-}
-export function validatePDFFile(file:any){
-  if(!file) return {valid:false, error:'파일 없음'}
-  const maxSize = 50*1024*1024
-  if(file.size > maxSize) return {valid:false, error:'파일 50MB 이하'}
-  return {valid:true}
-}
-export function validatePDFMagicBytes(buffer:any){
-  try{
-    let header = ''
-    if(typeof Buffer !== 'undefined'){
-      header = Buffer.from(buffer.slice(0,4)).toString()
-    }else{
-      const arr = new Uint8Array(buffer.slice(0,4))
-      header = String.fromCharCode(arr[0]||0, arr[1]||0, arr[2]||0, arr[3]||0)
-    }
-    if(!header.startsWith('%PDF')) return {valid:false, error:'PDF 파일이 아닙니다'}
-    return {valid:true}
-  }catch{ return {valid:false, error:'PDF 검증 실패'} }
-}
-const loginAttempts = new Map<string, {count:number, lastAttempt:number}>()
-export function checkRateLimit(ip:string){
-  const now = Date.now()
-  const record = loginAttempts.get(ip)
-  if(!record) return {allowed:true}
-  if(record.count >= 5 && now - record.lastAttempt < 10*60*1000){
-    return {allowed:false, error:'5회 실패, 10분 후 재시도'}
-  }
-  if(now - record.lastAttempt > 10*60*1000){
-    loginAttempts.delete(ip)
-    return {allowed:true}
-  }
-  return {allowed:true}
-}
-export function recordLoginAttempt(ip:string, success:boolean){
-  const now = Date.now()
-  if(success){ loginAttempts.delete(ip); return }
-  const record = loginAttempts.get(ip) || {count:0, lastAttempt:now}
-  record.count += 1
-  record.lastAttempt = now
-  loginAttempts.set(ip, record)
+export function isAdmin(payload:any): boolean {
+  if(!payload) return false
+  return payload.role==='ADMIN' || payload.loginId?.includes('parkhy5454') || payload.email?.includes('parkhy5454')
 }
