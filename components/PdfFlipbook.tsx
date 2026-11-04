@@ -16,29 +16,37 @@ function loadPdfjs() {
   return pdfjsPromise
 }
 
-// 넘김 소리: 짧은 노이즈를 필터로 다듬어 종이 넘기는 소리를 합성합니다(외부 음원 없음).
+// 넘김 소리: 종이가 스치는 소리를 노이즈 + 필터 + 떨림으로 합성합니다(외부 음원 없음).
 let audioCtx: AudioContext | null = null
 function playPageSound() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
     const ctx = audioCtx
     if (ctx.state === 'suspended') ctx.resume()
-    const dur = 0.35
-    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate)
+    const dur = 0.6
+    const len = Math.floor(ctx.sampleRate * dur)
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
     const data = buf.getChannelData(0)
-    for (let i = 0; i < data.length; i++) {
-      const t = i / data.length
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3) * (t < 0.15 ? t / 0.15 : 1)
+    for (let i = 0; i < len; i++) {
+      const t = i / len
+      // 천천히 올라갔다 길게 줄어드는 포락선
+      const env = Math.sin(Math.PI * Math.min(1, t * 1.6)) * Math.pow(1 - t, 1.6)
+      // 종이 결을 흉내 내는 빠른 떨림
+      const flutter = 0.55 + 0.45 * Math.sin(i * 0.035 + Math.random() * 0.8)
+      data[i] = (Math.random() * 2 - 1) * env * flutter
     }
     const src = ctx.createBufferSource()
     src.buffer = buf
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'bandpass'
-    filter.frequency.value = 1800
-    filter.Q.value = 0.7
+    const hp = ctx.createBiquadFilter()
+    hp.type = 'highpass'
+    hp.frequency.value = 900
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = 3000
+    bp.Q.value = 0.5
     const gain = ctx.createGain()
-    gain.gain.value = 0.6
-    src.connect(filter).connect(gain).connect(ctx.destination)
+    gain.gain.value = 0.35
+    src.connect(hp).connect(bp).connect(gain).connect(ctx.destination)
     src.start()
   } catch {
     // 소리 재생이 막혀 있으면 조용히 넘어갑니다.
@@ -88,8 +96,8 @@ export default function PdfFlipbook({ url, title }: Props) {
   useEffect(() => { soundRef.current = soundOn }, [soundOn])
 
   const onFlip = () => { if (soundRef.current) playPageSound() }
-  const prev = () => flipRef.current?.pageFlip()?.flipPrev()
-  const next = () => flipRef.current?.pageFlip()?.flipNext()
+  const prev = () => flipRef.current?.pageFlip()?.flipPrev('bottom')
+  const next = () => flipRef.current?.pageFlip()?.flipNext('bottom')
 
   if (error) return <div style={{ padding: 20, color: '#B91C1C', background: 'white', borderRadius: 12 }}>{error}</div>
 
