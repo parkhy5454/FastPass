@@ -180,3 +180,45 @@ model Payment {
   status    String   @default("PENDING")
   createdAt DateTime @default(now())
 }
+
+model ExamRound {
+  id          String   @id @default(cuid())
+  category    String
+  round       String
+  durationMin Int      @default(150)
+  passScore   Int      @default(60)
+  subjectMin  Int      @default(0)
+  createdAt   DateTime @default(now())
+  @@unique([category, round])
+}
+
+model ExamQuestion {
+  id          String   @id @default(cuid())
+  category    String
+  round       String
+  subject     String
+  number      Int
+  content     String
+  choices     Json
+  answer      Int
+  explanation String?
+  kind        String   @default("기출")
+  createdAt   DateTime @default(now())
+  @@unique([category, round, number])
+}
+
+model ExamAttempt {
+  id          String    @id @default(cuid())
+  userId      String
+  category    String
+  round       String
+  startedAt   DateTime  @default(now())
+  deadlineAt  DateTime
+  submittedAt DateTime?
+  answers     Json?
+  result      Json?
+  total       Int?
+  passed      Boolean?
+  timedOut    Boolean   @default(false)
+  @@index([userId])
+}
