@@ -1,31 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { getR2 } from '@/lib/r2'
 import { validatePDFFile, validatePDFMagicBytes, sanitizeInput } from '@/lib/security'
 import { requireAdmin } from '@/lib/session'
 import { prisma } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
-// PDF를 Cloudflare R2에 저장하고, 플립북 행에 공개 주소를 기록합니다.
-function getR2Client() {
-  const accountId = process.env.R2_ACCOUNT_ID
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
-  const bucket = process.env.R2_BUCKET
-  const publicUrl = process.env.R2_PUBLIC_URL
-  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) return null
-  const client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId, secretAccessKey },
-  })
-  return { client, bucket, publicUrl: publicUrl.replace(/\/$/, '') }
-}
-
+// PDF를 Cloudflare R2(비공개 버킷)에 저장하고, 플립북 행에 객체 키를 기록합니다.
 export async function POST(req: NextRequest) {
   const auth = requireAdmin()
   if ('response' in auth) return auth.response
 
-  const r2 = getR2Client()
+  const r2 = getR2()
   if (!r2) {
     return NextResponse.json({ error: '파일 저장소(R2)가 설정되어 있지 않습니다' }, { status: 500 })
   }
@@ -64,7 +50,7 @@ export async function POST(req: NextRequest) {
         title,
         category,
         type,
-        pdfUrl: `${r2.publicUrl}/${key}`,
+        pdfUrl: key,
         fileName: file.name.slice(0, 200),
         fileSize: file.size,
         totalPages: 0,
