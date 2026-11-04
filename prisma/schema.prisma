@@ -222,3 +222,20 @@ model ExamAttempt {
   timedOut    Boolean   @default(false)
   @@index([userId])
 }
+
+model Inquiry {
+  id          String   @id @default(cuid())
+  userId      String
+  userLoginId String?
+  category    String   // 버그 | 건의 | 오답 | 기타
+  title       String
+  body        String
+  refId       String?  // 오답 문의일 때 문항 id
+  refInfo     String?  // 예: 전기기사 2022년 04월 24일 3번
+  status      String   @default("접수") // 접수 | 확인 | 처리완료
+  adminReply  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([userId])
+  @@index([status])
+}
