@@ -28,7 +28,7 @@ function FlipbookList(){
       {items.map((f:any)=>(
         <a key={f.id} href={`/flipbook/${f.id}`} style={{display:'block', background:'white', borderRadius:12, padding:16, marginBottom:10, textDecoration:'none', color:'#1a1a2e', border:'1px solid #EEF2F7'}}>
           <div style={{fontWeight:700, fontSize:14}}>{f.title}</div>
-          <div style={{fontSize:11, color:'#6B7280', marginTop:4}}>{f.type} · {f.pdfUrl ? 'PDF' : '파일 없음'}</div>
+          <div style={{fontSize:11, color:'#6B7280', marginTop:4}}>{f.type} · {f.hasPdf ? 'PDF' : '파일 없음'}</div>
         </a>
       ))}
     </main>
