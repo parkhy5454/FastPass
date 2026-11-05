@@ -93,6 +93,7 @@ model Question {
 
 model Flipbook {
   id          String   @id @default(cuid())
+  authorId    String?  // 교재 저자 (Author.id), 기출 등은 비어 있음
   title       String
   category    String?
   certType    String?
@@ -238,4 +239,28 @@ model Inquiry {
   updatedAt   DateTime @updatedAt
   @@index([userId])
   @@index([status])
+}
+
+model Author {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String
+  isBusiness  Boolean  @default(false)
+  bankInfo    Json?    // 정산 계좌 등 (관리자만 열람)
+  status      String   @default("신청") // 신청 | 승인 | 중지
+  createdAt   DateTime @default(now())
+  @@index([status])
+}
+
+// 교재 구매 기록 (정산 기준). 결제 연동 후 생성됩니다.
+model BookPurchase {
+  id          String   @id @default(cuid())
+  userId      String
+  flipbookId  String
+  amount      Int
+  status      String   @default("완료") // 완료 | 환불
+  settledMonth String? // 정산 완료된 달 (YYYY-MM)
+  createdAt   DateTime @default(now())
+  @@index([flipbookId])
+  @@index([userId])
 }
