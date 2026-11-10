@@ -239,3 +239,16 @@ model Inquiry {
   @@index([userId])
   @@index([status])
 }
+
+// AI 생성 문항 초안. 검수 승인 전까지 공개되지 않습니다.
+model ExamDraft {
+  id        String   @id @default(cuid())
+  category  String
+  round     String
+  source    String   // anthropic | sample
+  payload   Json     // 문항 배열
+  errors    Json     // 검증 실패 목록
+  status    String   @default("검수대기") // 검수대기 | 승인 | 반려
+  createdAt DateTime @default(now())
+  @@index([category, status])
+}
